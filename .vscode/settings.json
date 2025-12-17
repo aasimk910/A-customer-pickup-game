@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "2407702_AasimKhan_part1.sln"
+    "dotnet.defaultSolution": "Astar customer pickup game.sln"
 }

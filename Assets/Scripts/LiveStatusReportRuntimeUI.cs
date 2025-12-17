@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -41,6 +42,9 @@ public class LiveStatusReportRuntimeUI : MonoBehaviour
     TMP_Text collisionValue;
     readonly List<RowRefs> rows = new List<RowRefs>();
 
+    // Cache last known speeds so even if they stop after collision, UI can still decide "slower"
+    readonly Dictionary<AgentStatsSource, float> lastKnownSpeed = new Dictionary<AgentStatsSource, float>();
+
     void Start()
     {
         // Must be on the Canvas object (the one with Canvas component)
@@ -68,15 +72,130 @@ public class LiveStatusReportRuntimeUI : MonoBehaviour
             if (rr?.source == null) continue;
 
             var a = rr.source;
-            rr.agent.text        = string.IsNullOrWhiteSpace(a.agentName) ? "Agent" : a.agentName;
-            rr.speed.text        = $"{a.speedMS:0.00} m/s";
-            rr.distance.text     = $"{a.totalDistanceM:0.0} m";
+
+            // Keep last known speed updated
+            lastKnownSpeed[a] = a.speedMS;
+
+            rr.agent.text = string.IsNullOrWhiteSpace(a.agentName) ? a.gameObject.name : a.agentName;
+            rr.speed.text = $"{a.speedMS:0.00} m/s";
+            rr.distance.text = $"{a.totalDistanceM:0.0} m";
             rr.packageCount.text = $"{a.packageCount}";
-            rr.status.text       = string.IsNullOrWhiteSpace(a.deliveryStatus) ? "-" : a.deliveryStatus;
+            rr.status.text = string.IsNullOrWhiteSpace(a.deliveryStatus) ? "-" : a.deliveryStatus;
         }
 
         if (collisionValue != null)
-            collisionValue.text = AgentStatsSource.lastCollisionMessage;
+            collisionValue.text = FormatCollisionText(AgentStatsSource.lastCollisionMessage);
+    }
+
+    // UI-only override:
+    // If your system writes messages like "YellowTaxi collided with RedTaxi",
+    // this shows "SLOWER_AGENT moved right to avoid collision".
+    string FormatCollisionText(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "No Collision";
+
+        var msg = raw.Trim();
+
+        if (msg.Equals("No Collision", StringComparison.OrdinalIgnoreCase))
+            return "No Collision";
+
+        const string token = "collided with";
+        var idx = msg.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0)
+            return msg;
+
+        var nameA = SanitizeName(msg.Substring(0, idx).Trim());
+        var nameB = SanitizeName(msg.Substring(idx + token.Length).Trim());
+
+        AgentStatsSource srcA = null, srcB = null;
+        TryFindAgentByName(nameA, out srcA);
+        TryFindAgentByName(nameB, out srcB);
+
+        AgentStatsSource slower = null;
+
+        if (srcA != null && srcB != null)
+        {
+            float spA = lastKnownSpeed.TryGetValue(srcA, out var vA) ? vA : srcA.speedMS;
+            float spB = lastKnownSpeed.TryGetValue(srcB, out var vB) ? vB : srcB.speedMS;
+            slower = (spA <= spB) ? srcA : srcB;
+        }
+        else if (srcA != null)
+        {
+            slower = srcA;
+        }
+        else if (srcB != null)
+        {
+            slower = srcB;
+        }
+
+        var slowerName = slower != null ? GetDisplayName(slower, "Agent") : (!string.IsNullOrWhiteSpace(nameA) ? nameA : "Agent");
+        return $"{slowerName} moved right to avoid collision";
+    }
+
+    string GetDisplayName(AgentStatsSource src, string fallback)
+    {
+        if (src == null) return fallback;
+        if (!string.IsNullOrWhiteSpace(src.agentName)) return src.agentName;
+        if (src.gameObject != null && !string.IsNullOrWhiteSpace(src.gameObject.name)) return src.gameObject.name;
+        return fallback;
+    }
+
+    string SanitizeName(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return s;
+        s = s.Trim();
+
+        // Remove common trailing punctuation Unity messages might include
+        while (s.Length > 0)
+        {
+            char c = s[s.Length - 1];
+            if (c == '.' || c == ',' || c == ';' || c == ':' || c == '!' || c == '?' || c == ')' || c == ']' || c == '}')
+                s = s.Substring(0, s.Length - 1).TrimEnd();
+            else
+                break;
+        }
+
+        // Also remove leading punctuation
+        while (s.Length > 0)
+        {
+            char c = s[0];
+            if (c == '(' || c == '[' || c == '{')
+                s = s.Substring(1).TrimStart();
+            else
+                break;
+        }
+
+        return s;
+    }
+
+    bool TryFindAgentByName(string name, out AgentStatsSource found)
+    {
+        found = null;
+        if (string.IsNullOrWhiteSpace(name)) return false;
+
+        for (int i = 0; i < agents.Count; i++)
+        {
+            var a = agents[i];
+            if (a == null) continue;
+
+            // Match against agentName OR GameObject name
+            if (!string.IsNullOrWhiteSpace(a.agentName) &&
+                string.Equals(a.agentName.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            {
+                found = a;
+                return true;
+            }
+
+            if (a.gameObject != null &&
+                string.Equals(a.gameObject.name.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            {
+                found = a;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     void BuildUI()
@@ -162,20 +281,20 @@ public class LiveStatusReportRuntimeUI : MonoBehaviour
 
         if (isHeader)
         {
-            CreateCell(row, "H_Agent", "Agent",    headerFontMax, true,  colFlex[0], TextAlignmentOptions.Left,   18);
-            CreateCell(row, "H_Speed", "Speed",    headerFontMax, true,  colFlex[1], TextAlignmentOptions.Right,  18);
-            CreateCell(row, "H_Dist",  "Distance", headerFontMax, true,  colFlex[2], TextAlignmentOptions.Right,  18);
-            CreateCell(row, "H_Customer",   "Customer",      headerFontMax, true,  colFlex[3], TextAlignmentOptions.Center, 18);
-            CreateCell(row, "H_Stat",  "Status",   headerFontMax, true,  colFlex[4], TextAlignmentOptions.Left,   18);
+            CreateCell(row, "H_Agent", "Agent", headerFontMax, true, colFlex[0], TextAlignmentOptions.Left, 18);
+            CreateCell(row, "H_Speed", "Speed", headerFontMax, true, colFlex[1], TextAlignmentOptions.Right, 18);
+            CreateCell(row, "H_Dist", "Distance", headerFontMax, true, colFlex[2], TextAlignmentOptions.Right, 18);
+            CreateCell(row, "H_Customer", "Customer", headerFontMax, true, colFlex[3], TextAlignmentOptions.Center, 18);
+            CreateCell(row, "H_Stat", "Status", headerFontMax, true, colFlex[4], TextAlignmentOptions.Left, 18);
             return null;
         }
 
         var rr = new RowRefs { source = source };
-        rr.agent        = CreateCell(row, "C_Agent", "", rowFontMax, false, colFlex[0], TextAlignmentOptions.Left,   16);
-        rr.speed        = CreateCell(row, "C_Speed", "", rowFontMax, false, colFlex[1], TextAlignmentOptions.Right,  16);
-        rr.distance     = CreateCell(row, "C_Dist",  "", rowFontMax, false, colFlex[2], TextAlignmentOptions.Right,  16);
-        rr.packageCount = CreateCell(row, "C_Customer",   "", rowFontMax, false, colFlex[3], TextAlignmentOptions.Center, 16);
-        rr.status       = CreateCell(row, "C_Stat",  "", rowFontMax, false, colFlex[4], TextAlignmentOptions.Left,   16);
+        rr.agent = CreateCell(row, "C_Agent", "", rowFontMax, false, colFlex[0], TextAlignmentOptions.Left, 16);
+        rr.speed = CreateCell(row, "C_Speed", "", rowFontMax, false, colFlex[1], TextAlignmentOptions.Right, 16);
+        rr.distance = CreateCell(row, "C_Dist", "", rowFontMax, false, colFlex[2], TextAlignmentOptions.Right, 16);
+        rr.packageCount = CreateCell(row, "C_Customer", "", rowFontMax, false, colFlex[3], TextAlignmentOptions.Center, 16);
+        rr.status = CreateCell(row, "C_Stat", "", rowFontMax, false, colFlex[4], TextAlignmentOptions.Left, 16);
         return rr;
     }
 

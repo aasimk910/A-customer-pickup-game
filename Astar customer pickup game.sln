@@ -1,0 +1,56 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp-firstpass", "Assembly-CSharp-firstpass.csproj", "{53F37861-770E-06D8-0A62-DB3CB6CF5E54}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Barmetler.RoadSystem.Runtime", "Barmetler.RoadSystem.Runtime.csproj", "{19587F97-B46C-EC35-C98B-0B54DA78317F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp", "Assembly-CSharp.csproj", "{E66B8A8E-3092-0A68-237D-04C88EFCD1D0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Barmetler.RoadSystem.Editor", "Barmetler.RoadSystem.Editor.csproj", "{E60B2A3D-27FE-39BC-EA00-E8B2E4C07DA4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Barmetler.RoadSystem.Runtime.Tests", "Barmetler.RoadSystem.Runtime.Tests.csproj", "{3FE5DCF3-0008-5E21-BE70-3E259F47EE80}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Barmetler.RoadSystem.Editor.Tests", "Barmetler.RoadSystem.Editor.Tests.csproj", "{14F7F538-052E-B005-69EE-79BCEEF9B434}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp-Editor-firstpass", "Assembly-CSharp-Editor-firstpass.csproj", "{BE7E75B7-828E-8B09-2125-B9F5F017038E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{53F37861-770E-06D8-0A62-DB3CB6CF5E54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53F37861-770E-06D8-0A62-DB3CB6CF5E54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53F37861-770E-06D8-0A62-DB3CB6CF5E54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53F37861-770E-06D8-0A62-DB3CB6CF5E54}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19587F97-B46C-EC35-C98B-0B54DA78317F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19587F97-B46C-EC35-C98B-0B54DA78317F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19587F97-B46C-EC35-C98B-0B54DA78317F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19587F97-B46C-EC35-C98B-0B54DA78317F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E66B8A8E-3092-0A68-237D-04C88EFCD1D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E66B8A8E-3092-0A68-237D-04C88EFCD1D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E66B8A8E-3092-0A68-237D-04C88EFCD1D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E66B8A8E-3092-0A68-237D-04C88EFCD1D0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E60B2A3D-27FE-39BC-EA00-E8B2E4C07DA4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E60B2A3D-27FE-39BC-EA00-E8B2E4C07DA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E60B2A3D-27FE-39BC-EA00-E8B2E4C07DA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E60B2A3D-27FE-39BC-EA00-E8B2E4C07DA4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3FE5DCF3-0008-5E21-BE70-3E259F47EE80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3FE5DCF3-0008-5E21-BE70-3E259F47EE80}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3FE5DCF3-0008-5E21-BE70-3E259F47EE80}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3FE5DCF3-0008-5E21-BE70-3E259F47EE80}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14F7F538-052E-B005-69EE-79BCEEF9B434}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14F7F538-052E-B005-69EE-79BCEEF9B434}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14F7F538-052E-B005-69EE-79BCEEF9B434}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14F7F538-052E-B005-69EE-79BCEEF9B434}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE7E75B7-828E-8B09-2125-B9F5F017038E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE7E75B7-828E-8B09-2125-B9F5F017038E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE7E75B7-828E-8B09-2125-B9F5F017038E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE7E75B7-828E-8B09-2125-B9F5F017038E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
