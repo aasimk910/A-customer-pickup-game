@@ -25,20 +25,14 @@ public class PathfindingTester : MonoBehaviour
     [SerializeField] private float waitAtPickupSeconds = 3f;
 
     [Header("Customer Count (Live Status)")]
-[SerializeField] private bool resetCustomerCountOnStart = true;
+    [SerializeField] private bool resetCustomerCountOnStart = true;
+    [SerializeField] private int assignedCustomerCountOnPickup = 0;
+    [SerializeField] private bool useAssignedCustomerCountOnPickup = true;
 
-// Set this per agent in Inspector (ex: Yellow=4, Red=3, Grey=3)
-[SerializeField] private int assignedCustomerCountOnPickup = 0;
-
-// If false, it will increment by 1 instead of setting to assigned value
-[SerializeField] private bool useAssignedCustomerCountOnPickup = true;
-
-[Header("Speed penalty per customer")]
-[SerializeField, Range(0f, 0.5f)] private float speedPenaltyPerCustomer = 0.10f; // 10%
-[SerializeField, Range(0.1f, 1f)] private float minCustomerSpeedMultiplier = 0.25f; // don't go too slow
-[SerializeField] private bool compoundPenalty = true; // true = 0.9^customers
-
-
+    [Header("Speed penalty per customer")]
+    [SerializeField, Range(0f, 0.5f)] private float speedPenaltyPerCustomer = 0.10f; // 10%
+    [SerializeField, Range(0.1f, 1f)] private float minCustomerSpeedMultiplier = 0.25f;
+    [SerializeField] private bool compoundPenalty = true;
 
     private int currentTarget = 0;
     private Vector3 currentTargetPos;
@@ -57,95 +51,84 @@ public class PathfindingTester : MonoBehaviour
     private string statusText = "Heading to pickup";
 
     private AgentStatsSource stats;
+    private Rigidbody cachedRigidbody;
 
     // =========================================================
-    // YIELD / AVOIDANCE
+    // PRE-COLLISION YIELD (RAYCAST) - SLOWER MOVES RIGHT & STOPS
     // =========================================================
-    [Header("Avoidance / Yielding (Cast-based)")]
-    public bool enableAvoidance = true;
+    [Header("Pre-Collision Yield (Raycast)")]
+    public bool enablePreCollisionYield = true;
 
-    [Tooltip("Put all cars on a dedicated 'Agents' layer and set this mask to that layer.")]
+    [Tooltip("Set this to your Agents layer only (recommended).")]
     public LayerMask agentLayerMask = ~0;
 
-    [Header("Detection")]
-    [Tooltip("Base how far behind we look for a faster agent coming up.")]
-    public float rearRayLength = 5.0f;
+    [Tooltip("How far behind to raycast to detect a faster agent approaching.")]
+    public float rearRayDistance = 7f;
 
-    [Tooltip("Base how far ahead we look for another agent.")]
-    public float forwardRayLength = 3.0f;
-
-    [Tooltip("Extra forward detection distance per m/s of our speed.")]
-    public float forwardRayExtraPerMS = 0.45f;
-
-    [Tooltip("Use SphereCast instead of Raycast (recommended for cars).")]
-    public bool useSphereCast = true;
-
-    [Tooltip("Minimum sphere radius for casts.")]
-    public float minSphereRadius = 0.35f;
-
-    [Tooltip("Sphere radius scale based on car collider half-width (extents.x).")]
-    public float sphereRadiusScale = 0.75f;
-
-    [Header("Front collision avoidance (follow distance)")]
-    [Tooltip("Start slowing down when another agent is closer than this.")]
-    public float safeFollowDistance = 3.0f;
-
-    [Tooltip("Hard stop if another agent gets closer than this (prevents going through).")]
-    public float hardStopDistance = 1.0f;
-
-    [Tooltip("Also slow down if time-to-collision is below this (seconds).")]
-    public float ttcSlowSeconds = 1.2f;
-
-    [Tooltip("Hard stop if time-to-collision is below this (seconds).")]
-    public float ttcHardStopSeconds = 0.55f;
-
-    [Tooltip("Smallest speed multiplier while following (before hard stop).")]
-    [Range(0.05f, 1f)]
-    public float minFollowSpeedMultiplier = 0.20f;
-
-    [Tooltip("When braking for a front hazard, also shift right up to this weight (0..1).")]
-    [Range(0f, 1f)]
-    public float frontAvoidMaxSideWeight = 0.65f;
-
-    [Header("Yielding behaviour (faster car from behind)")]
-    [Tooltip("How far we move sideways when yielding (RIGHT).")]
-    public float yieldSideOffsetMeters = 1.2f;
-
-    [Tooltip("How fast we snap to the right (sharp).")]
-    public float sharpRightSlideSpeed = 10.0f;
-
-    [Tooltip("How fast we merge back to lane (smooth).")]
-    public float mergeBackSlideSpeed = 2.5f;
-
-    [Tooltip("Reduce speed while yielding so faster car can pass.")]
-    [Range(0.1f, 1f)]
-    public float yieldSpeedMultiplier = 0.55f;
-
-    [Tooltip("If another agent is faster than us by this amount, we yield.")]
+    [Tooltip("Faster agent must exceed us by this many m/s to trigger yield.")]
     public float speedDiffToYield = 0.5f;
 
-    [Tooltip("After moving aside, continue forward this many meters before you're allowed to merge back.")]
-    public float forwardAfterSideMeters = 1.5f;
+    [Tooltip("World +X shift when yielding (move right).")]
+    public float yieldShiftRightX = 3.5f;
 
-    [Tooltip("Consider the faster car 'passed' when it's this far ahead along our forward direction.")]
-    public float passAheadMeters = 2.0f;
+    [Tooltip("How fast (m/s) we slide right.")]
+    public float yieldShiftSpeed = 25f;
 
-    [Header("Debug")]
-    public bool debugDraw = true;
+    [Tooltip("Consider faster car passed when it's this far ahead (meters).")]
+    public float yieldPassAheadMeters = 2.0f;
 
-    // Internal state
-    private float sideWeight = 0f; // 0..1 (0 = lane center, 1 = fully right)
-    private bool yieldActive = false;
-    private AgentStatsSource yieldingTo = null;
-    private Vector3 yieldStartPos;
-    private Vector3 yieldForwardDir;
+    [Tooltip("Safety timeout so we don't get stuck waiting.")]
+    public float yieldMaxWaitSeconds = 6f;
 
-    private Collider cachedCollider;
+    [Tooltip("Cooldown to avoid re-triggering instantly.")]
+    public float yieldCooldownSeconds = 0.6f;
+
+    private bool preYieldActive = false;
+    private AgentStatsSource preYieldFasterAgent = null;
+    private float yieldCooldownUntil = 0f;
+    private float yieldHoldY = 0f;
+    private float yieldHoldZ = 0f;
+    private Vector3 yieldForwardDir = Vector3.forward;
+
+    // =========================================================
+    // COLLISION RECOVERY (optional safety fallback)
+    // =========================================================
+    [Header("Collision Recovery (On actual collision)")]
+    public bool enableCollisionRecovery = true;
+
+    [Tooltip("World +X shift applied to the slower car on collision.")]
+    public float collisionShiftRightX = 3.5f;
+
+    [Tooltip("How fast (m/s) we slide right on collision.")]
+    public float collisionShiftSpeed = 20f;
+
+    [Tooltip("Consider the faster car 'passed' when it's this far ahead (meters).")]
+    public float collisionPassAhead = 2.0f;
+
+    [Tooltip("After the faster car passes, move forward this many meters before resuming path following.")]
+    public float collisionForwardAfterPass = 1.5f;
+
+    [Tooltip("How fast (m/s) we move forward during the recovery step.")]
+    public float collisionForwardSpeed = 6f;
+
+    [Tooltip("Safety timeout so we don't get stuck if the other car disappears.")]
+    public float collisionMaxWaitSeconds = 6f;
+
+    [Tooltip("Cooldown to avoid retriggering repeatedly on the same contact.")]
+    public float collisionCooldownSeconds = 0.5f;
+
+    private bool collisionRecoveryActive = false;
+    private AgentStatsSource collisionFasterAgent = null;
+    private float collisionCooldownUntil = 0f;
+    private float collisionLaneY = 0f;
+    private float collisionHoldZ = 0f;
+    private Vector3 collisionForwardDir = Vector3.forward;
 
     void Start()
     {
         stats = GetComponent<AgentStatsSource>();
-        cachedCollider = GetComponentInChildren<Collider>();
+        cachedRigidbody = GetComponent<Rigidbody>();
+        if (cachedRigidbody == null) cachedRigidbody = GetComponentInChildren<Rigidbody>();
 
         if (stats != null)
         {
@@ -156,7 +139,6 @@ public class PathfindingTester : MonoBehaviour
 
             if (resetCustomerCountOnStart)
                 stats.packageCount = 0;
-
         }
 
         if (start == null || pickup == null || end == null)
@@ -244,57 +226,55 @@ public class PathfindingTester : MonoBehaviour
 
         Vector3 prevPos = transform.position;
 
+        // Always keep measured speed updated (used for yield decision by others)
+        // (We set it at the end after movement too.)
+
         if (agentMove && ConnectionArray.Count > 0)
         {
             if (currentTarget < 0) currentTarget = 0;
             if (currentTarget >= ConnectionArray.Count) currentTarget = ConnectionArray.Count - 1;
 
+            // effective speed after customer penalty
             float moveSpeed = currentSpeed;
 
-// speed reduced by 10% for every customer (compounded)
-int customers = (stats != null) ? Mathf.Max(0, stats.packageCount) : 0;
+            int customers = (stats != null) ? Mathf.Max(0, stats.packageCount) : 0;
+            float mult = compoundPenalty
+                ? Mathf.Pow(1f - speedPenaltyPerCustomer, customers)
+                : (1f - (speedPenaltyPerCustomer * customers));
 
-float mult = 1f;
-if (compoundPenalty)
-    mult = Mathf.Pow(1f - speedPenaltyPerCustomer, customers);   // 0.9^customers
-else
-    mult = 1f - (speedPenaltyPerCustomer * customers);           // linear option
-
-mult = Mathf.Clamp(mult, minCustomerSpeedMultiplier, 1f);
-moveSpeed *= mult;
-
+            mult = Mathf.Clamp(mult, minCustomerSpeedMultiplier, 1f);
+            moveSpeed *= mult;
 
             currentTargetPos = ConnectionArray[currentTarget].ToNode.transform.position;
             currentTargetPos.y = transform.position.y;
 
-            Vector3 baseDir = currentTargetPos - transform.position;
-            baseDir.y = 0f;
+            Vector3 dir = currentTargetPos - transform.position;
+            dir.y = 0f;
 
-            if (baseDir.sqrMagnitude > 0.0001f)
+            if (dir.sqrMagnitude > 0.0001f)
             {
-                Vector3 forwardDir = baseDir.normalized;
+                Vector3 forwardDir = dir.normalized;
 
-                Vector3 adjustedTarget = currentTargetPos;
-                float speedMult = 1f;
-
-                if (enableAvoidance)
-                    ApplyYieldAndAvoidLogic(forwardDir, ref adjustedTarget, ref speedMult, dt);
-
-                Vector3 steerDir = adjustedTarget - transform.position;
-                steerDir.y = 0f;
-
-                if (steerDir.sqrMagnitude > 0.0001f)
+                // ===== PRE-COLLISION RAYCAST YIELD (ONLY IF NOT ALREADY YIELDING) =====
+                if (enablePreCollisionYield && !preYieldActive && !collisionRecoveryActive && Time.time >= yieldCooldownUntil)
                 {
-                    Quaternion targetRot = Quaternion.LookRotation(steerDir, Vector3.up);
-                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, turnSpeed * dt);
+                    if (TryDetectFasterAgentFromBehind(forwardDir, moveSpeed, out AgentStatsSource fasterAgent))
+                    {
+                        StartCoroutine(PreCollisionYieldRoutine(fasterAgent, forwardDir));
+                        // Skip normal movement this frame.
+                        UpdateMeasuredSpeed(prevPos, dt);
+                        return;
+                    }
                 }
 
-                // NOTE: We apply speedMult here.
-                transform.position += steerDir.normalized * (moveSpeed * speedMult) * dt;
+                Quaternion targetRot = Quaternion.LookRotation(forwardDir, Vector3.up);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, turnSpeed * dt);
 
-                float remainingToTrueTarget = (currentTargetPos - transform.position).magnitude;
+                transform.position += forwardDir * moveSpeed * dt;
 
-                if (remainingToTrueTarget < 1f)
+                float remainingToTarget = (currentTargetPos - transform.position).magnitude;
+
+                if (remainingToTarget < 1f)
                 {
                     currentTarget++;
 
@@ -318,254 +298,258 @@ moveSpeed *= mult;
             }
         }
 
+        UpdateMeasuredSpeed(prevPos, dt);
+    }
+
+    private void UpdateMeasuredSpeed(Vector3 prevPos, float dt)
+    {
         Vector3 curPos = transform.position;
         float frameDist = Vector3.Distance(prevPos, curPos);
         totalDistanceTravelled += frameDist;
 
         currentSpeedValue = (dt > 0f) ? frameDist / dt : 0f;
 
-        // IMPORTANT: keep stats.speedMS updated so yielding works
         if (stats != null)
             stats.speedMS = currentSpeedValue;
     }
 
-    private void ApplyYieldAndAvoidLogic(Vector3 forwardDir, ref Vector3 adjustedTarget, ref float speedMult, float dt)
+    private bool TryDetectFasterAgentFromBehind(Vector3 forwardDir, float myPlannedSpeed, out AgentStatsSource fasterAgent)
     {
-        // Origins based on collider
-        Vector3 center = transform.position + Vector3.up * 0.35f;
-        float extentZ = 0.6f;
-        float extentX = 0.5f;
+        fasterAgent = null;
 
-        if (cachedCollider != null)
-        {
-            center = cachedCollider.bounds.center;
-            extentZ = Mathf.Max(0.2f, cachedCollider.bounds.extents.z);
-            extentX = Mathf.Max(0.2f, cachedCollider.bounds.extents.x);
-        }
+        // Raycast from slightly above center backward
+        Vector3 origin = transform.position + Vector3.up * 0.35f;
+        Vector3 backDir = -forwardDir;
 
-        // Use measured speed first (stats.speedMS is now updated every frame).
-        float mySpeed = Mathf.Max(currentSpeedValue, (stats != null ? stats.speedMS : 0f));
-
-        // Make detection + yielding strong even if inspector values are small.
-        float yieldOffset = Mathf.Max(3.5f, yieldSideOffsetMeters);
-        float sharpSlide = Mathf.Max(15f, sharpRightSlideSpeed);
-        float mergeSlide = Mathf.Max(2.0f, mergeBackSlideSpeed);
-        float yieldMult = Mathf.Clamp(yieldSpeedMultiplier, 0.35f, 1f);
-
-        float rearLen = Mathf.Max(10f, rearRayLength) + mySpeed * 0.5f;
-        float frontLen = Mathf.Max(2.5f, forwardRayLength + mySpeed * Mathf.Max(0f, forwardRayExtraPerMS));
-
-        Vector3 rearOrigin = center - forwardDir * extentZ;
-        Vector3 frontOrigin = center + forwardDir * extentZ;
-
-        float castRadius = useSphereCast ? Mathf.Max(minSphereRadius, extentX * Mathf.Max(0f, sphereRadiusScale)) : 0f;
-
-        Vector3 right = Vector3.Cross(Vector3.up, forwardDir).normalized;
-
-        if (debugDraw)
-        {
-            Debug.DrawRay(rearOrigin, -forwardDir * rearLen, Color.yellow);
-            Debug.DrawRay(frontOrigin, forwardDir * frontLen, Color.cyan);
-        }
-
-        // 1) FRONT hazard: prefer "move right + slow" (only stop if right side blocked)
-        float frontAvoidWeight = 0f;
-
-        if (TryCastOtherAgent(frontOrigin, forwardDir, frontLen, castRadius, out AgentStatsSource frontAgent, out float frontDist))
-        {
-            float otherSpeed = (frontAgent != null) ? frontAgent.speedMS : 0f;
-
-            float dirDot = 1f;
-            if (frontAgent != null)
-            {
-                Vector3 otherFwd = frontAgent.transform.forward;
-                otherFwd.y = 0f;
-                if (otherFwd.sqrMagnitude > 0.0001f)
-                    dirDot = Vector3.Dot(otherFwd.normalized, forwardDir.normalized);
-            }
-
-            float closingSpeed;
-            if (dirDot > 0.2f)
-                closingSpeed = mySpeed - otherSpeed;          // same direction
-            else if (dirDot < -0.2f)
-                closingSpeed = mySpeed + otherSpeed;          // head-on
-            else
-                closingSpeed = mySpeed;
-
-            closingSpeed = Mathf.Max(0f, closingSpeed);
-            float ttc = (closingSpeed > 0.05f) ? (frontDist / closingSpeed) : 999f;
-
-            bool imminent = (frontDist <= hardStopDistance) || (ttc <= ttcHardStopSeconds);
-
-            if (imminent)
-            {
-                // Try to evade right instead of full stop.
-                bool canShiftRight = IsSideClear(center, right, yieldOffset + extentX, castRadius);
-
-                if (canShiftRight)
-                {
-                    frontAvoidWeight = 1f; // force sharp right
-                    speedMult = Mathf.Min(speedMult, Mathf.Max(minFollowSpeedMultiplier, 0.35f));
-                }
-                else
-                {
-                    // Only stop if we literally can't move aside.
-                    speedMult = 0f;
-                    frontAvoidWeight = frontAvoidMaxSideWeight;
-                }
-            }
-            else
-            {
-                bool needSlow = (frontDist <= safeFollowDistance) || (ttc <= ttcSlowSeconds);
-                if (needSlow && closingSpeed > 0.05f)
-                {
-                    float tDist = Mathf.Clamp01(Mathf.InverseLerp(safeFollowDistance, hardStopDistance, frontDist));
-                    float speedByDist = Mathf.Lerp(1f, minFollowSpeedMultiplier, tDist);
-
-                    float tTtc = Mathf.Clamp01(Mathf.InverseLerp(ttcSlowSeconds, ttcHardStopSeconds, ttc));
-                    float speedByTtc = Mathf.Lerp(1f, minFollowSpeedMultiplier, tTtc);
-
-                    float target = Mathf.Min(speedByDist, speedByTtc);
-                    speedMult = Mathf.Min(speedMult, target);
-
-                    float tSide = Mathf.Max(tDist, tTtc);
-                    frontAvoidWeight = Mathf.Clamp01(tSide) * frontAvoidMaxSideWeight;
-                }
-            }
-        }
-
-        // 2) REAR hazard: yield to faster agent from behind (same lane-ish)
-        bool rearFastHazard = TryCastOtherAgent(rearOrigin, -forwardDir, rearLen, castRadius, out AgentStatsSource rearAgent, out float rearDist);
-
-        if (rearFastHazard && rearAgent != null)
-        {
-            Vector3 rel = rearAgent.transform.position - transform.position;
-            float behind = Vector3.Dot(rel, forwardDir);                 // negative = behind
-            float lateral = Mathf.Abs(Vector3.Dot(rel, right));          // sideways distance
-
-            float otherSpeed = rearAgent.speedMS;
-
-            bool isBehind = behind < -0.1f;
-            bool sameLane = lateral < (yieldOffset * 1.25f);
-            bool isFaster = otherSpeed > mySpeed + speedDiffToYield;
-
-            if (isBehind && sameLane && isFaster)
-            {
-                if (!yieldActive || yieldingTo != rearAgent)
-                {
-                    yieldActive = true;
-                    yieldingTo = rearAgent;
-                    yieldStartPos = transform.position;
-
-                    yieldForwardDir = forwardDir;
-                    yieldForwardDir.y = 0f;
-                    if (yieldForwardDir.sqrMagnitude < 0.0001f)
-                        yieldForwardDir = transform.forward;
-                    yieldForwardDir.Normalize();
-                }
-            }
-        }
-
-        // 3) Yield state machine (sharp right, move a bit forward, then merge back)
-        if (yieldActive)
-        {
-            float forwardMoved = Vector3.Dot(transform.position - yieldStartPos, yieldForwardDir);
-            bool passed = HasFasterPassed();
-
-            if (forwardMoved >= forwardAfterSideMeters && passed)
-            {
-                yieldActive = false;
-                yieldingTo = null;
-            }
-
-            sideWeight = Mathf.MoveTowards(sideWeight, 1f, sharpSlide * dt);
-            speedMult = Mathf.Min(speedMult, yieldMult);
-        }
-        else
-        {
-            sideWeight = Mathf.MoveTowards(sideWeight, 0f, mergeSlide * dt);
-        }
-
-        // 4) Apply lateral offset (RIGHT)
-        float combinedSideWeight = Mathf.Max(sideWeight, frontAvoidWeight);
-        Vector3 lateralOffset = right * (yieldOffset * combinedSideWeight);
-        adjustedTarget += lateralOffset;
-    }
-
-    private bool HasFasterPassed()
-    {
-        // Unity "fake null" safe-check:
-        if (yieldingTo == null) return true;
-
-        Vector3 rel = yieldingTo.transform.position - transform.position;
-        float ahead = Vector3.Dot(rel, yieldForwardDir);
-        return ahead > passAheadMeters;
-    }
-
-    private bool IsSideClear(Vector3 origin, Vector3 sideDir, float distance, float sphereRadius)
-    {
-        if (distance <= 0.01f) return true;
-
-        RaycastHit[] hits;
-
-        if (useSphereCast && sphereRadius > 0.001f)
-            hits = Physics.SphereCastAll(origin, sphereRadius, sideDir, distance, agentLayerMask, QueryTriggerInteraction.Ignore);
-        else
-            hits = Physics.RaycastAll(origin, sideDir, distance, agentLayerMask, QueryTriggerInteraction.Ignore);
-
-        if (hits == null || hits.Length == 0) return true;
-
-        foreach (var h in hits)
-        {
-            if (h.collider == null) continue;
-            if (h.collider.transform.IsChildOf(transform)) continue;
-
-            var a = h.collider.GetComponentInParent<AgentStatsSource>();
-            if (a != null && a != stats) return false;
-        }
-
-        return true;
-    }
-
-    private bool TryCastOtherAgent(
-        Vector3 origin,
-        Vector3 dir,
-        float length,
-        float sphereRadius,
-        out AgentStatsSource otherAgent,
-        out float hitDistance)
-    {
-        otherAgent = null;
-        hitDistance = 0f;
-
-        if (length <= 0f) return false;
-
-        RaycastHit[] hits;
-
-        if (useSphereCast && sphereRadius > 0.001f)
-            hits = Physics.SphereCastAll(origin, sphereRadius, dir, length, agentLayerMask, QueryTriggerInteraction.Ignore);
-        else
-            hits = Physics.RaycastAll(origin, dir, length, agentLayerMask, QueryTriggerInteraction.Ignore);
-
+        RaycastHit[] hits = Physics.RaycastAll(origin, backDir, rearRayDistance, agentLayerMask, QueryTriggerInteraction.Ignore);
         if (hits == null || hits.Length == 0) return false;
 
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
+        float mySpeedForCompare = Mathf.Max(myPlannedSpeed, (stats != null ? stats.speedMS : 0f));
+
         foreach (var h in hits)
         {
             if (h.collider == null) continue;
             if (h.collider.transform.IsChildOf(transform)) continue;
 
-            var a = h.collider.GetComponentInParent<AgentStatsSource>();
-            if (a != null && a != stats)
+            AgentStatsSource other = h.collider.GetComponentInParent<AgentStatsSource>();
+            if (other == null || other == stats) continue;
+
+            // ensure truly behind (not some side collider weirdness)
+            Vector3 rel = other.transform.position - transform.position;
+            float behind = Vector3.Dot(rel, forwardDir); // negative => behind
+            if (behind >= -0.1f) continue;
+
+            float otherSpeed = other.speedMS;
+            if (otherSpeed > mySpeedForCompare + speedDiffToYield)
             {
-                otherAgent = a;
-                hitDistance = h.distance;
+                fasterAgent = other;
                 return true;
             }
         }
 
         return false;
+    }
+
+    private IEnumerator PreCollisionYieldRoutine(AgentStatsSource fasterAgent, Vector3 forwardDir)
+    {
+        preYieldActive = true;
+        preYieldFasterAgent = fasterAgent;
+        yieldCooldownUntil = Time.time + yieldCooldownSeconds;
+
+        // Stop pathing immediately (we will reposition manually)
+        agentMove = false;
+
+        if (cachedRigidbody != null)
+        {
+            cachedRigidbody.velocity = Vector3.zero;
+            cachedRigidbody.angularVelocity = Vector3.zero;
+        }
+
+        yieldHoldY = transform.position.y;
+        yieldHoldZ = transform.position.z;
+
+        yieldForwardDir = forwardDir;
+        yieldForwardDir.y = 0f;
+        if (yieldForwardDir.sqrMagnitude < 0.0001f)
+            yieldForwardDir = transform.forward;
+        yieldForwardDir.Normalize();
+
+        // 1) Immediately shift to +X (right)
+        float targetX = transform.position.x + yieldShiftRightX;
+
+        while (Mathf.Abs(transform.position.x - targetX) > 0.01f)
+        {
+            float newX = Mathf.MoveTowards(transform.position.x, targetX, yieldShiftSpeed * Time.deltaTime);
+            transform.position = new Vector3(newX, yieldHoldY, yieldHoldZ);
+
+            if (cachedRigidbody != null)
+            {
+                cachedRigidbody.velocity = Vector3.zero;
+                cachedRigidbody.angularVelocity = Vector3.zero;
+            }
+
+            yield return null;
+        }
+
+        // 2) STOP and wait until the faster car is ahead
+        float t = 0f;
+        while (preYieldFasterAgent != null && t < yieldMaxWaitSeconds)
+        {
+            // keep us fixed in the yielded position (stop)
+            transform.position = new Vector3(targetX, yieldHoldY, yieldHoldZ);
+
+            Vector3 rel = preYieldFasterAgent.transform.position - transform.position;
+            float ahead = Vector3.Dot(rel, yieldForwardDir);
+            if (ahead > yieldPassAheadMeters)
+                break;
+
+            if (cachedRigidbody != null)
+            {
+                cachedRigidbody.velocity = Vector3.zero;
+                cachedRigidbody.angularVelocity = Vector3.zero;
+            }
+
+            t += Time.deltaTime;
+            yield return null;
+        }
+
+        // 3) Resume normal pathing (move again)
+        preYieldFasterAgent = null;
+        preYieldActive = false;
+        agentMove = true;
+    }
+
+    // =========================================================
+    // COLLISION (post-impact) RESPONSE (fallback)
+    // =========================================================
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!enableCollisionRecovery) return;
+        if (collisionRecoveryActive) return;
+        if (preYieldActive) return;
+        if (Time.time < collisionCooldownUntil) return;
+        if (!agentMove) return;
+
+        AgentStatsSource otherAgent = collision.collider.GetComponentInParent<AgentStatsSource>();
+        if (otherAgent == null || otherAgent == stats) return;
+
+        TryStartCollisionRecovery(otherAgent);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!enableCollisionRecovery) return;
+        if (collisionRecoveryActive) return;
+        if (preYieldActive) return;
+        if (Time.time < collisionCooldownUntil) return;
+        if (!agentMove) return;
+
+        AgentStatsSource otherAgent = other.GetComponentInParent<AgentStatsSource>();
+        if (otherAgent == null || otherAgent == stats) return;
+
+        TryStartCollisionRecovery(otherAgent);
+    }
+
+    private void TryStartCollisionRecovery(AgentStatsSource otherAgent)
+    {
+        float mySpd = (stats != null) ? stats.speedMS : currentSpeedValue;
+        float otherSpd = otherAgent.speedMS;
+
+        const float eps = 0.05f;
+        bool iAmSlower;
+
+        if (mySpd < otherSpd - eps) iAmSlower = true;
+        else if (otherSpd < mySpd - eps) iAmSlower = false;
+        else iAmSlower = (gameObject.GetInstanceID() > otherAgent.gameObject.GetInstanceID());
+
+        if (!iAmSlower) return;
+
+        collisionFasterAgent = otherAgent;
+        StartCoroutine(CollisionRecoveryRoutine());
+    }
+
+    private IEnumerator CollisionRecoveryRoutine()
+    {
+        collisionRecoveryActive = true;
+        collisionCooldownUntil = Time.time + collisionCooldownSeconds;
+
+        agentMove = false;
+
+        if (cachedRigidbody != null)
+        {
+            cachedRigidbody.velocity = Vector3.zero;
+            cachedRigidbody.angularVelocity = Vector3.zero;
+        }
+
+        collisionLaneY = transform.position.y;
+        collisionHoldZ = transform.position.z;
+
+        collisionForwardDir = transform.forward;
+        collisionForwardDir.y = 0f;
+        if (collisionForwardDir.sqrMagnitude < 0.0001f)
+            collisionForwardDir = Vector3.forward;
+        collisionForwardDir.Normalize();
+
+        float targetX = transform.position.x + collisionShiftRightX;
+
+        while (Mathf.Abs(transform.position.x - targetX) > 0.01f)
+        {
+            float newX = Mathf.MoveTowards(transform.position.x, targetX, collisionShiftSpeed * Time.deltaTime);
+            transform.position = new Vector3(newX, collisionLaneY, collisionHoldZ);
+
+            if (cachedRigidbody != null)
+            {
+                cachedRigidbody.velocity = Vector3.zero;
+                cachedRigidbody.angularVelocity = Vector3.zero;
+            }
+
+            yield return null;
+        }
+
+        float t = 0f;
+        while (collisionFasterAgent != null && t < collisionMaxWaitSeconds)
+        {
+            transform.position = new Vector3(targetX, collisionLaneY, collisionHoldZ);
+
+            Vector3 rel = collisionFasterAgent.transform.position - transform.position;
+            float ahead = Vector3.Dot(rel, collisionForwardDir);
+            if (ahead > collisionPassAhead)
+                break;
+
+            if (cachedRigidbody != null)
+            {
+                cachedRigidbody.velocity = Vector3.zero;
+                cachedRigidbody.angularVelocity = Vector3.zero;
+            }
+
+            t += Time.deltaTime;
+            yield return null;
+        }
+
+        Vector3 startPos = transform.position;
+        Vector3 forwardTarget = startPos + collisionForwardDir * collisionForwardAfterPass;
+        forwardTarget.y = collisionLaneY;
+
+        while ((forwardTarget - transform.position).sqrMagnitude > 0.01f)
+        {
+            Vector3 next = Vector3.MoveTowards(transform.position, forwardTarget, collisionForwardSpeed * Time.deltaTime);
+            next.y = collisionLaneY;
+            transform.position = next;
+
+            if (cachedRigidbody != null)
+            {
+                cachedRigidbody.velocity = Vector3.zero;
+                cachedRigidbody.angularVelocity = Vector3.zero;
+            }
+
+            yield return null;
+        }
+
+        collisionFasterAgent = null;
+        collisionRecoveryActive = false;
+        agentMove = true;
     }
 
     // =========================================================
@@ -612,9 +596,9 @@ moveSpeed *= mult;
         if (stats != null)
         {
             if (useAssignedCustomerCountOnPickup && assignedCustomerCountOnPickup > 0)
-        stats.packageCount = assignedCustomerCountOnPickup;
-    else
-        stats.packageCount += 1;
+                stats.packageCount = assignedCustomerCountOnPickup;
+            else
+                stats.packageCount += 1;
         }
 
         yield return new WaitForSeconds(2f);

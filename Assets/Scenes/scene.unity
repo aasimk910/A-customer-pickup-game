@@ -4806,6 +4806,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: RedTaxiCam
       objectReference: {fileID: 0}
+    - target: {fileID: 9005220659476430823, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 9005220659476430820, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
     m_RemovedGameObjects: []
@@ -9928,9 +9932,33 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 100000, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100004, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100006, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100008, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 100010, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
       propertyPath: m_Name
       value: GreyTaxi
+      objectReference: {fileID: 0}
+    - target: {fileID: 100010, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 400008, guid: b1969db97c2d8604ba4bfe3000a13858, type: 3}
       propertyPath: m_LocalScale.x
@@ -16655,7 +16683,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 193066563}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: PassengerSeatYellow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -18121,8 +18149,24 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9005220659476430821, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
+      propertyPath: m_ClearFlags
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 9005220659476430821, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
       propertyPath: field of view
       value: 26.991467
+      objectReference: {fileID: 0}
+    - target: {fileID: 9005220659476430821, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
+      propertyPath: m_BackGroundColor.b
+      value: 0.13486233
+      objectReference: {fileID: 0}
+    - target: {fileID: 9005220659476430821, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
+      propertyPath: m_BackGroundColor.g
+      value: 0.5566038
+      objectReference: {fileID: 0}
+    - target: {fileID: 9005220659476430821, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
+      propertyPath: m_BackGroundColor.r
+      value: 0.03938234
       objectReference: {fileID: 0}
     - target: {fileID: 9005220659476430821, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
       propertyPath: m_projectionMatrixMode
@@ -22501,7 +22545,7 @@ Transform:
   m_GameObject: {fileID: 434770672}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 486.06314, y: 38.988804, z: 473.40182}
+  m_LocalPosition: {x: 486.06314, y: 37.2, z: 473.40182}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -24223,6 +24267,10 @@ PrefabInstance:
     - target: {fileID: 9005220659476430823, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
       propertyPath: m_Name
       value: YellowTaxiCam
+      objectReference: {fileID: 0}
+    - target: {fileID: 9005220659476430823, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -34759,30 +34807,25 @@ MonoBehaviour:
   speedPenaltyPerCustomer: 0.1
   minCustomerSpeedMultiplier: 0.25
   compoundPenalty: 1
-  enableAvoidance: 1
+  enablePreCollisionYield: 1
   agentLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  rearRayLength: 3
-  forwardRayLength: 3
-  forwardRayExtraPerMS: 0.45
-  useSphereCast: 1
-  minSphereRadius: 0.35
-  sphereRadiusScale: 0.75
-  safeFollowDistance: 10
-  hardStopDistance: 1
-  ttcSlowSeconds: 1.2
-  ttcHardStopSeconds: 0.55
-  minFollowSpeedMultiplier: 0.2
-  frontAvoidMaxSideWeight: 0.65
-  yieldSideOffsetMeters: 20
-  sharpRightSlideSpeed: 50
-  mergeBackSlideSpeed: 2.5
-  yieldSpeedMultiplier: 0.55
+  rearRayDistance: 9
   speedDiffToYield: 5
-  forwardAfterSideMeters: 8
-  passAheadMeters: 2
-  debugDraw: 1
+  yieldShiftRightX: 3.5
+  yieldShiftSpeed: 25
+  yieldPassAheadMeters: 2
+  yieldMaxWaitSeconds: 6
+  yieldCooldownSeconds: 0.6
+  enableCollisionRecovery: 1
+  collisionShiftRightX: 7
+  collisionShiftSpeed: 20
+  collisionPassAhead: 2
+  collisionForwardAfterPass: 1.5
+  collisionForwardSpeed: 6
+  collisionMaxWaitSeconds: 6
+  collisionCooldownSeconds: 1
 --- !u!4 &757576909 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 400000, guid: 05aec82adc02f16409639716322b1673, type: 3}
@@ -40588,7 +40631,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 884873122}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: PassengerSeatRed
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -49650,6 +49693,10 @@ PrefabInstance:
       value: YellowTaxi
       objectReference: {fileID: 0}
     - target: {fileID: 100000, guid: 05aec82adc02f16409639716322b1673, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100000, guid: 05aec82adc02f16409639716322b1673, type: 3}
       propertyPath: m_TagString
       value: Untagged
       objectReference: {fileID: 0}
@@ -52019,30 +52066,25 @@ MonoBehaviour:
   speedPenaltyPerCustomer: 0.1
   minCustomerSpeedMultiplier: 0.25
   compoundPenalty: 1
-  enableAvoidance: 1
+  enablePreCollisionYield: 1
   agentLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  rearRayLength: 3
-  forwardRayLength: 3
-  forwardRayExtraPerMS: 0.45
-  useSphereCast: 1
-  minSphereRadius: 0.35
-  sphereRadiusScale: 0.75
-  safeFollowDistance: 10
-  hardStopDistance: 1
-  ttcSlowSeconds: 1.2
-  ttcHardStopSeconds: 0.55
-  minFollowSpeedMultiplier: 0.2
-  frontAvoidMaxSideWeight: 0.65
-  yieldSideOffsetMeters: 20
-  sharpRightSlideSpeed: 50
-  mergeBackSlideSpeed: 2.5
-  yieldSpeedMultiplier: 0.55
+  rearRayDistance: 7
   speedDiffToYield: 5
-  forwardAfterSideMeters: 8
-  passAheadMeters: 2
-  debugDraw: 1
+  yieldShiftRightX: 3.5
+  yieldShiftSpeed: 25
+  yieldPassAheadMeters: 2
+  yieldMaxWaitSeconds: 6
+  yieldCooldownSeconds: 0.6
+  enableCollisionRecovery: 1
+  collisionShiftRightX: 9
+  collisionShiftSpeed: 20
+  collisionPassAhead: 2
+  collisionForwardAfterPass: 1.5
+  collisionForwardSpeed: 6
+  collisionMaxWaitSeconds: 6
+  collisionCooldownSeconds: 1
 --- !u!114 &1551906126
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -52085,7 +52127,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 4, y: 2, z: 6}
+  m_Size: {x: 3, y: 2, z: 6}
   m_Center: {x: 0, y: 1.5, z: 0}
 --- !u!54 &1551906128
 Rigidbody:
@@ -53446,7 +53488,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1750013295}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: PassengerSeatGrey
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -58629,9 +58671,33 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 100000, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100002, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100004, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100006, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 100008, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 100010, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
       propertyPath: m_Name
       value: RedTaxi
+      objectReference: {fileID: 0}
+    - target: {fileID: 100010, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 400008, guid: fc2b2b65264c13f48a615fa7dbc2ef24, type: 3}
       propertyPath: m_LocalScale.x
@@ -63749,30 +63815,25 @@ MonoBehaviour:
   speedPenaltyPerCustomer: 0.1
   minCustomerSpeedMultiplier: 0.25
   compoundPenalty: 1
-  enableAvoidance: 1
+  enablePreCollisionYield: 1
   agentLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  rearRayLength: 3
-  forwardRayLength: 3
-  forwardRayExtraPerMS: 0.45
-  useSphereCast: 1
-  minSphereRadius: 0.35
-  sphereRadiusScale: 0.75
-  safeFollowDistance: 10
-  hardStopDistance: 1
-  ttcSlowSeconds: 1.2
-  ttcHardStopSeconds: 0.55
-  minFollowSpeedMultiplier: 0.2
-  frontAvoidMaxSideWeight: 0.65
-  yieldSideOffsetMeters: 20
-  sharpRightSlideSpeed: 50
-  mergeBackSlideSpeed: 2.5
-  yieldSpeedMultiplier: 1
+  rearRayDistance: 7
   speedDiffToYield: 5
-  forwardAfterSideMeters: 8
-  passAheadMeters: 2
-  debugDraw: 1
+  yieldShiftRightX: 3.5
+  yieldShiftSpeed: 25
+  yieldPassAheadMeters: 2
+  yieldMaxWaitSeconds: 6
+  yieldCooldownSeconds: 0.6
+  enableCollisionRecovery: 1
+  collisionShiftRightX: 9
+  collisionShiftSpeed: 20
+  collisionPassAhead: 2
+  collisionForwardAfterPass: 1.5
+  collisionForwardSpeed: 6
+  collisionMaxWaitSeconds: 6
+  collisionCooldownSeconds: 1
 --- !u!114 &1985238108
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -63815,7 +63876,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 4, y: 2, z: 6}
+  m_Size: {x: 3, y: 2, z: 6}
   m_Center: {x: 0, y: 1.5, z: 0}
 --- !u!54 &1985238110
 Rigidbody:
@@ -78100,6 +78161,10 @@ PrefabInstance:
     - target: {fileID: 9005220659476430823, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
       propertyPath: m_Name
       value: GreyTaxiCam
+      objectReference: {fileID: 0}
+    - target: {fileID: 9005220659476430823, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 9005220659476430820, guid: 2d3a85ecde41a8246a79669975912b74, type: 3}
