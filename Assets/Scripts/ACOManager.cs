@@ -192,20 +192,22 @@ public class ACOManager : MonoBehaviour
 
     /// <summary>
     /// Find the nearest waypoint to a position.
+    /// Uses sqrMagnitude for faster distance comparison.
     /// </summary>
     public GameObject FindNearestWaypoint(Vector3 position)
     {
         GameObject nearest = null;
-        float nearestDist = float.MaxValue;
+        float nearestDistSqr = float.MaxValue;
 
-        foreach (var waypoint in waypointNodes)
+        for (int i = 0; i < waypointNodes.Count; i++)
         {
+            var waypoint = waypointNodes[i];
             if (waypoint == null) continue;
 
-            float dist = Vector3.Distance(position, waypoint.transform.position);
-            if (dist < nearestDist)
+            float distSqr = (position - waypoint.transform.position).sqrMagnitude;
+            if (distSqr < nearestDistSqr)
             {
-                nearestDist = dist;
+                nearestDistSqr = distSqr;
                 nearest = waypoint;
             }
         }
@@ -218,9 +220,9 @@ public class ACOManager : MonoBehaviour
     /// </summary>
     public void ResetPheromones()
     {
-        foreach (var conn in connections)
+        for (int i = 0; i < connections.Count; i++)
         {
-            conn.PheromoneLevel = defaultPheromone;
+            connections[i].PheromoneLevel = defaultPheromone;
         }
     }
 

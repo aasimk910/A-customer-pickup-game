@@ -1,32 +1,15 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+
+/// <summary>
+/// Node record for A* pathfinding algorithm.
+/// </summary>
 public class NodeRecord
 {
-    private GameObject node;
-    public GameObject Node
-    {
-        get { return node; }
-        set { node = value; }
-    }
-    private Connection connection;
-    public Connection Connection
-    {
-        get { return connection; }
-        set { connection = value; }
-    }
-    private float costSoFar;
-    public float CostSoFar
-    {
-        get { return costSoFar; }
-        set { costSoFar = value; }
-    }
-    private float estimatedTotalCost;
-    public float EstimatedTotalCost
-    {
-        get { return estimatedTotalCost; }
-        set { estimatedTotalCost = value; }
-    }
+    public GameObject Node { get; set; }
+    public Connection Connection { get; set; }
+    public float CostSoFar { get; set; }
+    public float EstimatedTotalCost { get; set; }
+
     public NodeRecord()
     {
     }

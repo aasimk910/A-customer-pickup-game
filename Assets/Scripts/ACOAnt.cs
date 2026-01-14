@@ -7,25 +7,12 @@ using UnityEngine;
 /// </summary>
 public class ACOAnt
 {
-    private float antTourLength = 0;
-    public float AntTourLength
-    {
-        set { antTourLength = value; }
-        get { return antTourLength; }
-    }
+    public float AntTourLength { get; set; } = 0;
 
     private List<ACOConnection> antTravelledConnections = new List<ACOConnection>();
-    public List<ACOConnection> AntTravelledConnections
-    {
-        get { return antTravelledConnections; }
-    }
+    public List<ACOConnection> AntTravelledConnections => antTravelledConnections;
 
-    private GameObject startNode;
-    public GameObject StartNode
-    {
-        set { startNode = value; }
-        get { return startNode; }
-    }
+    public GameObject StartNode { get; set; }
 
     public ACOAnt()
     {
@@ -33,7 +20,7 @@ public class ACOAnt
 
     public void AddAntTourLength(float tourLength)
     {
-        this.AntTourLength += tourLength;
+        AntTourLength += tourLength;
     }
 
     public void AddTravelledConnection(ACOConnection aConnection)
@@ -43,8 +30,8 @@ public class ACOAnt
 
     public void Reset()
     {
-        antTourLength = 0;
+        AntTourLength = 0;
         antTravelledConnections.Clear();
-        startNode = null;
+        StartNode = null;
     }
 }

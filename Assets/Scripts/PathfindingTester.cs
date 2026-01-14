@@ -35,7 +35,6 @@ public class PathfindingTester : MonoBehaviour
     [SerializeField] private bool compoundPenalty = true;
 
     private int currentTarget = 0;
-    private Vector3 currentTargetPos;
 
     private int startToPickupCount = 0;
     private int pickupToEndCount = 0;
@@ -77,13 +76,17 @@ public class PathfindingTester : MonoBehaviour
     [SerializeField] private float sideStepDistance = 5f;        // How far to move aside immediately
     [SerializeField] private float yieldWaitTime = 3f;           // How long to wait after stepping aside
     [SerializeField] private float safeDistance = 8f;            // Min distance to maintain
-    [SerializeField] private float yieldSpeedMultiplier = 0f;    // COMPLETE STOP when yielding
-    private int agentLayer;                                      // Agent layer for detection
     
     public bool IsYielding => isYielding;              // Public for HUD/debugging
 
     // Track if already initialized
     private bool isInitialized = false;
+    
+    // Cached values for performance
+    private static Collider[] overlapResults = new Collider[20];  // Reusable array for Physics.OverlapSphereNonAlloc
+    private Vector3 cachedForward;
+    private Vector3 cachedRight;
+    private Vector3 cachedPosition;
 
     void Start()
     {
@@ -102,9 +105,26 @@ public class PathfindingTester : MonoBehaviour
 
     /// <summary>
     /// Called by ACOTester to reinitialize for return journey.
+    /// Overload without parameters uses the Inspector-assigned start/end nodes.
     /// </summary>
     public void InitializeForReturn()
     {
+        Debug.Log($"[PathfindingTester] {gameObject.name}: InitializeForReturn called (no params). Start={start?.name}, End={end?.name}");
+        ReInitializeForReturn();
+    }
+
+    /// <summary>
+    /// Called by ACOTester to reinitialize for return journey with specific start and end nodes.
+    /// </summary>
+    /// <param name="startNode">The last node from ACOTester (where to start pathfinding)</param>
+    /// <param name="endNode">The start node from ACOTester (destination to return to)</param>
+    public void InitializeForReturn(GameObject startNode, GameObject endNode)
+    {
+        if (startNode != null)
+            start = startNode;
+        if (endNode != null)
+            end = endNode;
+        
         Debug.Log($"[PathfindingTester] {gameObject.name}: InitializeForReturn called. Start={start?.name}, End={end?.name}");
         ReInitializeForReturn();
     }
@@ -372,7 +392,7 @@ public class PathfindingTester : MonoBehaviour
                 moveSpeed *= mult;
             }
 
-            currentTargetPos = ConnectionArray[currentTarget].ToNode.transform.position;
+            Vector3 currentTargetPos = ConnectionArray[currentTarget].ToNode.transform.position;
             currentTargetPos.y = transform.position.y;
 
             Vector3 dir = currentTargetPos - transform.position;
@@ -506,21 +526,24 @@ public class PathfindingTester : MonoBehaviour
     /// Uses raycastDistance for front/rear and raycastWidth for sides.
     /// Returns info about detected agent if one is nearby.
     /// Also returns whether agent is approaching from behind.
+    /// Uses NonAlloc version to avoid GC allocations.
     /// </summary>
     private (bool detected, float otherSpeed, float distance, Transform otherTransform, bool isFromBehind) RaycastForAgentAhead()
     {
-        Vector3 origin = transform.position + Vector3.up * 1f;
-        Vector3 forward = transform.forward;
-        Vector3 right = transform.right;
+        cachedPosition = transform.position;
+        cachedForward = transform.forward;
+        cachedRight = transform.right;
+        Vector3 origin = cachedPosition + Vector3.up;
         
         // Calculate max detection range (use larger of the two)
         float maxRange = Mathf.Max(raycastDistance, raycastWidth);
         
-        // Use OverlapSphere to find nearby agents
-        Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, maxRange);
+        // Use OverlapSphereNonAlloc to find nearby agents without allocation
+        int numColliders = Physics.OverlapSphereNonAlloc(cachedPosition, maxRange, overlapResults);
         
-        foreach (Collider col in nearbyColliders)
+        for (int i = 0; i < numColliders; i++)
         {
+            Collider col = overlapResults[i];
             if (col.transform.IsChildOf(transform) || col.transform == transform)
                 continue;
             
@@ -528,14 +551,14 @@ public class PathfindingTester : MonoBehaviour
             ACOTester otherACO = col.GetComponentInParent<ACOTester>();
             if (otherACO != null && otherACO.enabled && otherACO.IsMoving)
             {
-                Vector3 toOther = otherACO.transform.position - transform.position;
+                Vector3 toOther = otherACO.transform.position - cachedPosition;
                 float distance = toOther.magnitude;
                 
                 // Check if agent is within detection box (front/rear by raycastDistance, sides by raycastWidth)
-                if (IsWithinDetectionBox(toOther, forward, right, distance))
+                if (IsWithinDetectionBox(toOther, cachedForward, cachedRight, distance))
                 {
                     // Check if the other agent is behind us (approaching from rear)
-                    float dotProduct = Vector3.Dot(forward, toOther.normalized);
+                    float dotProduct = Vector3.Dot(cachedForward, toOther.normalized);
                     bool isFromBehind = dotProduct < -0.3f; // Agent is behind us
                     
                     // Also check if the other agent is heading towards us
@@ -558,13 +581,13 @@ public class PathfindingTester : MonoBehaviour
             PathfindingTester otherPF = col.GetComponentInParent<PathfindingTester>();
             if (otherPF != null && otherPF != this && otherPF.enabled && otherPF.agentMove)
             {
-                Vector3 toOther = otherPF.transform.position - transform.position;
+                Vector3 toOther = otherPF.transform.position - cachedPosition;
                 float distance = toOther.magnitude;
                 
-                if (IsWithinDetectionBox(toOther, forward, right, distance))
+                if (IsWithinDetectionBox(toOther, cachedForward, cachedRight, distance))
                 {
                     // Check if the other agent is behind us (approaching from rear)
-                    float dotProduct = Vector3.Dot(forward, toOther.normalized);
+                    float dotProduct = Vector3.Dot(cachedForward, toOther.normalized);
                     bool isFromBehind = dotProduct < -0.3f; // Agent is behind us
                     
                     // Also check if the other agent is heading towards us
@@ -588,27 +611,27 @@ public class PathfindingTester : MonoBehaviour
         RaycastHit hit;
         
         // Front raycast
-        if (Physics.Raycast(origin, forward, out hit, raycastDistance))
+        if (Physics.Raycast(origin, cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
         }
         
         // Rear raycast - agents behind us approaching
-        if (Physics.Raycast(origin, -forward, out hit, raycastDistance))
+        if (Physics.Raycast(origin, -cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, true);
         }
         
         // Side raycasts (using raycastWidth)
-        if (Physics.Raycast(origin, right, out hit, raycastWidth))
+        if (Physics.Raycast(origin, cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
         }
         
-        if (Physics.Raycast(origin, -right, out hit, raycastWidth))
+        if (Physics.Raycast(origin, -cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
@@ -672,24 +695,6 @@ public class PathfindingTester : MonoBehaviour
         Vector3 sideStepPos = transform.position + rightDir * sideStepDistance;
         sideStepPos.y = transform.position.y;
         return sideStepPos;
-    }
-
-    /// <summary>
-    /// Check if the detected agent is still in our path.
-    /// </summary>
-    private bool IsAgentStillBlocking()
-    {
-        if (detectedAgent == null) return false;
-        
-        Vector3 toAgent = detectedAgent.position - transform.position;
-        float distance = toAgent.magnitude;
-        
-        if (distance > raycastDistance * 1.5f) return false;
-        
-        float dotProduct = Vector3.Dot(transform.forward, toAgent.normalized);
-        if (dotProduct < 0.1f) return false;
-        
-        return distance < safeDistance * 2f;
     }
 
     /// <summary>
@@ -786,13 +791,15 @@ public class PathfindingTester : MonoBehaviour
 
     /// <summary>
     /// Check if a nearby agent is picking up a customer.
+    /// Uses NonAlloc version to avoid GC allocations.
     /// </summary>
     private bool IsNearbyAgentPickingUp()
     {
-        Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, 7f);
+        int numColliders = Physics.OverlapSphereNonAlloc(transform.position, 7f, overlapResults);
 
-        foreach (var col in nearbyColliders)
+        for (int i = 0; i < numColliders; i++)
         {
+            var col = overlapResults[i];
             if (col.transform.IsChildOf(transform) || col.transform == transform)
                 continue;
 

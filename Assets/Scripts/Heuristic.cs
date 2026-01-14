@@ -1,14 +1,16 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+
+/// <summary>
+/// Heuristic calculator for A* pathfinding (Euclidean distance).
+/// </summary>
 public class Heuristic
 {
-public Heuristic()
-{
-}
-public float Estimate(GameObject StartNode, GameObject GoalNode)
-{
-return Vector3.Distance(StartNode.transform.position,
-GoalNode.transform.position);
-}
+    public Heuristic()
+    {
+    }
+
+    public float Estimate(GameObject startNode, GameObject goalNode)
+    {
+        return Vector3.Distance(startNode.transform.position, goalNode.transform.position);
+    }
 }

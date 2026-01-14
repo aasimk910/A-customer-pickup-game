@@ -1,62 +1,77 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+
+/// <summary>
+/// Optimized pathfinding list using Dictionary for O(1) lookups.
+/// </summary>
 public class PathfindingList
 {
-    private List<NodeRecord> NodeRecordList = new List<NodeRecord>();
+    // Dictionary for O(1) Contains and Find operations
+    private Dictionary<GameObject, NodeRecord> nodeRecordDict = new Dictionary<GameObject, NodeRecord>();
+    // List maintained for GetSmallestElement (could use SortedSet but iteration is rare)
+    private List<NodeRecord> nodeRecordList = new List<NodeRecord>();
+
     public PathfindingList()
     {
     }
-    // Add NodeRecord.
-    public void AddNodeRecord(NodeRecord NodeRecord)
+
+    // Add NodeRecord - O(1) dictionary insert + O(1) list append
+    public void AddNodeRecord(NodeRecord nodeRecord)
     {
-        NodeRecordList.Add(NodeRecord);
+        if (nodeRecord.Node != null && !nodeRecordDict.ContainsKey(nodeRecord.Node))
+        {
+            nodeRecordDict[nodeRecord.Node] = nodeRecord;
+            nodeRecordList.Add(nodeRecord);
+        }
     }
-    // Remove a node from the list.
-    public void RemoveNodeRecord(NodeRecord NodeRecord)
+
+    // Remove a node from the list - O(1) dictionary remove + O(n) list remove
+    public void RemoveNodeRecord(NodeRecord nodeRecord)
     {
-        NodeRecordList.Remove(NodeRecord);
+        if (nodeRecord.Node != null)
+        {
+            nodeRecordDict.Remove(nodeRecord.Node);
+            nodeRecordList.Remove(nodeRecord);
+        }
     }
-    // Get the size of the list.
+
+    // Get the size of the list - O(1)
     public int GetSize()
     {
-        return NodeRecordList.Count;
+        return nodeRecordList.Count;
     }
-    // Get the smallest element.
+
+    // Get the smallest element - O(n) but unavoidable without more complex data structure
     public NodeRecord GetSmallestElement()
     {
-        NodeRecord TmpNodeRecord = new NodeRecord();
-        TmpNodeRecord.EstimatedTotalCost = float.MaxValue;
-        foreach (NodeRecord NodeRecord in NodeRecordList)
+        NodeRecord smallest = null;
+        float smallestCost = float.MaxValue;
+        
+        for (int i = 0; i < nodeRecordList.Count; i++)
         {
-            if (NodeRecord.EstimatedTotalCost < TmpNodeRecord.EstimatedTotalCost)
+            if (nodeRecordList[i].EstimatedTotalCost < smallestCost)
             {
-                TmpNodeRecord = NodeRecord;
+                smallestCost = nodeRecordList[i].EstimatedTotalCost;
+                smallest = nodeRecordList[i];
             }
         }
-        return TmpNodeRecord;
+        
+        return smallest;
     }
-    // Returns true if a node is contained in the list.
-    public bool Contains(GameObject Node)
+
+    // Returns true if a node is contained in the list - O(1)
+    public bool Contains(GameObject node)
     {
-        foreach (NodeRecord NodeRecord in NodeRecordList)
-        {
-            if (NodeRecord.Node.Equals(Node))
-            {
-                return true;
-            }
-        }
-        return false;
+        return node != null && nodeRecordDict.ContainsKey(node);
     }
-    // Returns a node record for a node if it is contained in the list.
-    public NodeRecord Find(GameObject Node)
+
+    // Returns a node record for a node if it is contained in the list - O(1)
+    public NodeRecord Find(GameObject node)
     {
-        foreach (NodeRecord NodeRecord in NodeRecordList)
+        if (node != null && nodeRecordDict.TryGetValue(node, out NodeRecord record))
         {
-            if (NodeRecord.Node.Equals(Node))
-            {
-                return NodeRecord;
-            }
+            return record;
         }
         return null;
     }

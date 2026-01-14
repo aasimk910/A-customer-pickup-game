@@ -1,29 +1,39 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+
+/// <summary>
+/// Optimized graph class using Dictionary for O(1) connection lookups.
+/// </summary>
 public class Graph
 {
-// A list of graph connections.
-private List<Connection> WaypointConnections = new List<Connection>();
-public Graph()
-{
-}
-// Add connection.
-public void AddConnection(Connection aConnection)
-{
-WaypointConnections.Add(aConnection);
-}
-// Get the connections from a node to the nodes it is connected to.
-public List<Connection> GetConnections(GameObject FromNode)
-{
-List<Connection> TmpConnections = new List<Connection>();
-foreach (Connection aConnection in WaypointConnections)
-{
-if(aConnection.FromNode.Equals(FromNode))
-{
-TmpConnections.Add(aConnection);
-}
-}
-return TmpConnections;
-}
+    // Dictionary for O(1) lookup of connections from a node
+    private Dictionary<GameObject, List<Connection>> connectionsByNode = new Dictionary<GameObject, List<Connection>>();
+
+    public Graph()
+    {
+    }
+
+    // Add connection - O(1) average case
+    public void AddConnection(Connection aConnection)
+    {
+        if (aConnection.FromNode == null) return;
+        
+        if (!connectionsByNode.TryGetValue(aConnection.FromNode, out List<Connection> connections))
+        {
+            connections = new List<Connection>();
+            connectionsByNode[aConnection.FromNode] = connections;
+        }
+        connections.Add(aConnection);
+    }
+
+    // Get the connections from a node - O(1) lookup
+    public List<Connection> GetConnections(GameObject fromNode)
+    {
+        if (fromNode != null && connectionsByNode.TryGetValue(fromNode, out List<Connection> connections))
+        {
+            return connections;
+        }
+        return new List<Connection>();
+    }
 }

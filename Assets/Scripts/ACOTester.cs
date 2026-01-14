@@ -97,7 +97,6 @@ public class ACOTester : MonoBehaviour
     // Internal state
     private List<ACOConnection> currentPath = new List<ACOConnection>();
     private List<ACOConnection> acoRoute = new List<ACOConnection>();
-    private int currentPathIndex = 0;
     private Vector3 lastPosition;
     private Vector3 offsetY = new Vector3(0, 0.3f, 0);
 
@@ -106,6 +105,7 @@ public class ACOTester : MonoBehaviour
     private bool isWaitingForPickup = false; // Waiting for another agent picking up
     private bool allParcelsHandled = false;
     private bool returnedToStart = false;
+    private GameObject lastVisitedNode = null; // Track the last waypoint visited for handoff to PathfindingTester
 
     // Collision Avoidance State - Raycast-based
     private bool isYielding = false;
@@ -119,20 +119,24 @@ public class ACOTester : MonoBehaviour
     [SerializeField] private float sideStepDistance = 5f;        // How far to move aside immediately
     [SerializeField] private float yieldWaitTime = 3f;           // How long to wait after stepping aside
     [SerializeField] private float safeDistance = 8f;            // Min distance to maintain
-    [SerializeField] private float yieldSpeedMultiplier = 0f;    // COMPLETE STOP when yielding
-    private int agentLayer;                                      // Agent layer for detection
     
     public bool IsYielding => isYielding;              // Public for HUD/debugging
 
     // Component references
     private AgentStatsSource stats;
     private Rigidbody cachedRigidbody;
+    
+    // Cached values for performance
+    private static Collider[] overlapResults = new Collider[20];  // Reusable array for Physics.OverlapSphereNonAlloc
+    private Vector3 cachedForward;
+    private Vector3 cachedRight;
+    private Vector3 cachedPosition;
 
     void Start()
     {
-        agentLayer = LayerMask.NameToLayer("Agent");
         stats = GetComponent<AgentStatsSource>();
         cachedRigidbody = GetComponent<Rigidbody>();
+        lastVisitedNode = startNode; // Initialize to start node
         if (cachedRigidbody == null)
             cachedRigidbody = GetComponentInChildren<Rigidbody>();
 
@@ -483,6 +487,9 @@ public class ACOTester : MonoBehaviour
     {
         Vector3 targetPos = targetNode.transform.position;
         targetPos.y = transform.position.y;
+        
+        // Update last visited node when we start moving to a new waypoint
+        lastVisitedNode = targetNode;
 
         while (Vector3.Distance(transform.position, targetPos) > waypointReachDistance)
         {
@@ -612,20 +619,6 @@ public class ACOTester : MonoBehaviour
 
             yield return null;
         }
-    }
-
-    /// <summary>
-    /// Handle customer pickup at goal (hold for 3 seconds, move customer to seat).
-    /// </summary>
-    IEnumerator HandleParcelAtGoal(GameObject goal)
-    {
-        // Use the original index-based customer lookup
-        GameObject customerToPickup = null;
-        if (currentGoalIndex < customers.Count)
-        {
-            customerToPickup = customers[currentGoalIndex];
-        }
-        yield return StartCoroutine(HandleParcelAtGoalWithCustomer(goal, customerToPickup));
     }
 
     /// <summary>
@@ -813,12 +806,14 @@ public class ACOTester : MonoBehaviour
         {
             Debug.Log($"[ACOTester] {gameObject.name}: Found PathfindingTester, enabling for return journey...");
 
-            // Use the nodes already assigned in Inspector - don't modify them
-            // PathfindingTester will use its own start, pickup, end nodes
+            // Pass the last visited node as start and ACO's start node as end
+            // This makes PathfindingTester navigate from where ACO ended back to where it started
+            GameObject pathfindingStart = lastVisitedNode ?? acoManager.FindNearestWaypoint(transform.position);
+            GameObject pathfindingEnd = startNode;
 
-            // Enable PathfindingTester and initialize it for return journey
+            // Enable PathfindingTester and initialize it for return journey with proper nodes
             aStarTester.enabled = true;
-            aStarTester.InitializeForReturn(); // Explicitly initialize for return journey
+            aStarTester.InitializeForReturn(pathfindingStart, pathfindingEnd); // Pass start and end nodes
             
             // Pass the current speed and package count to PathfindingTester
             float lastSpeed = CalculateSpeed();
@@ -841,31 +836,6 @@ public class ACOTester : MonoBehaviour
             Debug.LogWarning($"[ACOTester] {gameObject.name}: No PathfindingTester found! Using simple return.");
             yield return StartCoroutine(SimpleReturnToStart());
         }
-    }
-
-    /// <summary>
-    /// Find the nearest waypoint to a given position.
-    /// </summary>
-    GameObject FindNearestWaypoint(Vector3 position)
-    {
-        GameObject[] waypoints = GameObject.FindGameObjectsWithTag("Waypoint");
-        GameObject nearest = null;
-        float minDist = float.MaxValue;
-
-        foreach (GameObject wp in waypoints)
-        {
-            if (wp.GetComponent<VisGraphWaypointManager>() == null)
-                continue;
-
-            float dist = Vector3.Distance(position, wp.transform.position);
-            if (dist < minDist)
-            {
-                minDist = dist;
-                nearest = wp;
-            }
-        }
-
-        return nearest;
     }
 
     /// <summary>
@@ -917,13 +887,15 @@ public class ACOTester : MonoBehaviour
     /// <summary>
     /// Find a nearby agent that is currently picking up a customer.
     /// Checks both ACOTester and PathfindingTester agents.
+    /// Uses NonAlloc version to avoid allocations.
     /// </summary>
     bool IsNearbyAgentPickingUp()
     {
-        Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, 7f);
+        int numColliders = Physics.OverlapSphereNonAlloc(transform.position, 7f, overlapResults);
 
-        foreach (var col in nearbyColliders)
+        for (int i = 0; i < numColliders; i++)
         {
+            var col = overlapResults[i];
             if (col.transform.IsChildOf(transform) || col.transform == transform)
                 continue;
 
@@ -977,21 +949,24 @@ public class ACOTester : MonoBehaviour
     /// Uses raycastDistance for front/rear and raycastWidth for sides.
     /// Returns info about detected agent if one is nearby.
     /// Also returns whether agent is approaching from behind.
+    /// Uses NonAlloc version to avoid GC allocations.
     /// </summary>
     private (bool detected, float otherSpeed, float distance, Transform otherTransform, bool isFromBehind) RaycastForAgentAhead()
     {
-        Vector3 origin = transform.position + Vector3.up * 1f;
-        Vector3 forward = transform.forward;
-        Vector3 right = transform.right;
+        cachedPosition = transform.position;
+        cachedForward = transform.forward;
+        cachedRight = transform.right;
+        Vector3 origin = cachedPosition + Vector3.up;
         
         // Calculate max detection range (use larger of the two)
         float maxRange = Mathf.Max(raycastDistance, raycastWidth);
         
-        // Use OverlapSphere to find nearby agents
-        Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, maxRange);
+        // Use OverlapSphereNonAlloc to find nearby agents without allocation
+        int numColliders = Physics.OverlapSphereNonAlloc(cachedPosition, maxRange, overlapResults);
         
-        foreach (Collider col in nearbyColliders)
+        for (int i = 0; i < numColliders; i++)
         {
+            Collider col = overlapResults[i];
             if (col.transform.IsChildOf(transform) || col.transform == transform)
                 continue;
             
@@ -999,14 +974,14 @@ public class ACOTester : MonoBehaviour
             ACOTester otherACO = col.GetComponentInParent<ACOTester>();
             if (otherACO != null && otherACO != this && otherACO.enabled && otherACO.isMoving)
             {
-                Vector3 toOther = otherACO.transform.position - transform.position;
+                Vector3 toOther = otherACO.transform.position - cachedPosition;
                 float distance = toOther.magnitude;
                 
                 // Check if agent is within detection box (front/rear by raycastDistance, sides by raycastWidth)
-                if (IsWithinDetectionBox(toOther, forward, right, distance))
+                if (IsWithinDetectionBox(toOther, cachedForward, cachedRight, distance))
                 {
                     // Check if the other agent is behind us (approaching from rear)
-                    float dotProduct = Vector3.Dot(forward, toOther.normalized);
+                    float dotProduct = Vector3.Dot(cachedForward, toOther.normalized);
                     bool isFromBehind = dotProduct < -0.3f; // Agent is behind us
                     
                     // Also check if the other agent is heading towards us
@@ -1029,13 +1004,13 @@ public class ACOTester : MonoBehaviour
             PathfindingTester otherPF = col.GetComponentInParent<PathfindingTester>();
             if (otherPF != null && otherPF.enabled)
             {
-                Vector3 toOther = otherPF.transform.position - transform.position;
+                Vector3 toOther = otherPF.transform.position - cachedPosition;
                 float distance = toOther.magnitude;
                 
-                if (IsWithinDetectionBox(toOther, forward, right, distance))
+                if (IsWithinDetectionBox(toOther, cachedForward, cachedRight, distance))
                 {
                     // Check if the other agent is behind us (approaching from rear)
-                    float dotProduct = Vector3.Dot(forward, toOther.normalized);
+                    float dotProduct = Vector3.Dot(cachedForward, toOther.normalized);
                     bool isFromBehind = dotProduct < -0.3f; // Agent is behind us
                     
                     // Also check if the other agent is heading towards us
@@ -1059,27 +1034,27 @@ public class ACOTester : MonoBehaviour
         RaycastHit hit;
         
         // Front raycast
-        if (Physics.Raycast(origin, forward, out hit, raycastDistance))
+        if (Physics.Raycast(origin, cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
         }
         
         // Rear raycast - agents behind us approaching
-        if (Physics.Raycast(origin, -forward, out hit, raycastDistance))
+        if (Physics.Raycast(origin, -cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, true);
         }
         
         // Side raycasts (using raycastWidth)
-        if (Physics.Raycast(origin, right, out hit, raycastWidth))
+        if (Physics.Raycast(origin, cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
         }
         
-        if (Physics.Raycast(origin, -right, out hit, raycastWidth))
+        if (Physics.Raycast(origin, -cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
             if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
@@ -1145,26 +1120,6 @@ public class ACOTester : MonoBehaviour
         Vector3 sideStepPos = transform.position + rightDir * sideStepDistance;
         sideStepPos.y = transform.position.y;
         return sideStepPos;
-    }
-
-    /// <summary>
-    /// Check if the detected agent is still in our path using raycast.
-    /// </summary>
-    private bool IsAgentStillBlocking()
-    {
-        if (detectedAgent == null) return false;
-        
-        Vector3 toAgent = detectedAgent.position - transform.position;
-        float distance = toAgent.magnitude;
-        
-        // If agent moved far away or behind us, they're not blocking
-        if (distance > raycastDistance * 1.5f) return false;
-        
-        float dotProduct = Vector3.Dot(transform.forward, toAgent.normalized);
-        if (dotProduct < 0.1f) return false; // Agent is beside or behind us
-        
-        // Agent is still ahead and close
-        return distance < safeDistance * 2f;
     }
 
     /// <summary>

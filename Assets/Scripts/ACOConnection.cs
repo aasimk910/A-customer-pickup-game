@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -7,49 +6,22 @@ using UnityEngine;
 /// </summary>
 public class ACOConnection
 {
-    private float distance = 0;
-    public float Distance
-    {
-        get { return distance; }
-    }
+    public float Distance { get; private set; }
+    public float PheromoneLevel { get; set; }
+    public float PathProbability { get; set; }
+    public GameObject FromNode { get; private set; }
+    public GameObject ToNode { get; private set; }
 
-    private float pheromoneLevel;
-    public float PheromoneLevel
-    {
-        set { pheromoneLevel = value; }
-        get { return pheromoneLevel; }
-    }
-
-    private float pathProbability;
-    public float PathProbability
-    {
-        set { pathProbability = value; }
-        get { return pathProbability; }
-    }
-
-    private GameObject fromNode;
-    public GameObject FromNode
-    {
-        get { return fromNode; }
-    }
-
-    private GameObject toNode;
-    public GameObject ToNode
-    {
-        get { return toNode; }
-    }
-
-    // Default constructor.
     public ACOConnection()
     {
     }
 
-    public void SetConnection(GameObject FromNode, GameObject ToNode, float DefaultPheromoneLevel)
+    public void SetConnection(GameObject fromNode, GameObject toNode, float defaultPheromoneLevel)
     {
-        this.fromNode = FromNode;
-        this.toNode = ToNode;
-        distance = Vector3.Distance(FromNode.transform.position, ToNode.transform.position);
-        PheromoneLevel = DefaultPheromoneLevel;
+        FromNode = fromNode;
+        ToNode = toNode;
+        Distance = Vector3.Distance(fromNode.transform.position, toNode.transform.position);
+        PheromoneLevel = defaultPheromoneLevel;
         PathProbability = 0;
     }
 }

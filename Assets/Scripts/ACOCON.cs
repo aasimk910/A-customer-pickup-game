@@ -4,47 +4,16 @@ using UnityEngine;
 /// <summary>
 /// ACO Controller - Core Ant Colony Optimization algorithm.
 /// All parameters are configurable via the Inspector through ACOManager.
-/// Based on reference implementation with proper pheromone updates.
+/// Optimized with connection caching and HashSet for visited nodes.
 /// </summary>
 public class ACOCON
 {
-    // ACO Parameters (set by ACOManager)
-    private float defaultPheromone = 1.0f;
-    public float DefaultPheromone
-    {
-        get { return defaultPheromone; }
-        set { defaultPheromone = value; }
-    }
-
-    private float alpha = 1.0f;
-    public float Alpha
-    {
-        get { return alpha; }
-        set { alpha = value; }
-    }
-
-    private float beta = 2.0f;
-    public float Beta
-    {
-        get { return beta; }
-        set { beta = value; }
-    }
-
-    // Evaporation factor: 0 ≤ EvaporationFactor ≤ 1
-    private float evaporationFactor = 0.5f;
-    public float EvaporationFactor
-    {
-        get { return evaporationFactor; }
-        set { evaporationFactor = value; }
-    }
-
-    // Q is the pheromone deposit constant
-    private float q = 100f;
-    public float Q
-    {
-        get { return q; }
-        set { q = value; }
-    }
+    // ACO Parameters (set by ACOManager) - using auto-properties
+    public float DefaultPheromone { get; set; } = 1.0f;
+    public float Alpha { get; set; } = 1.0f;
+    public float Beta { get; set; } = 2.0f;
+    public float EvaporationFactor { get; set; } = 0.5f;
+    public float Q { get; set; } = 100f;
 
     // Ants moving through the graph
     public List<ACOAnt> Ants = new List<ACOAnt>();
@@ -52,8 +21,38 @@ public class ACOCON
     // The generated route
     private List<ACOConnection> MyRoute = new List<ACOConnection>();
 
+    // Cached connection lookup for O(1) access - built once per ACO run
+    private Dictionary<GameObject, List<ACOConnection>> connectionCache;
+
+    // Reusable list to avoid allocations
+    private List<ACOConnection> tempConnectionList = new List<ACOConnection>();
+
     public ACOCON()
     {
+    }
+
+    /// <summary>
+    /// Build connection cache for O(1) lookup by FromNode.
+    /// </summary>
+    private void BuildConnectionCache(List<ACOConnection> connections)
+    {
+        if (connectionCache == null)
+            connectionCache = new Dictionary<GameObject, List<ACOConnection>>();
+        else
+            connectionCache.Clear();
+
+        for (int i = 0; i < connections.Count; i++)
+        {
+            var conn = connections[i];
+            if (conn.FromNode == null) continue;
+            
+            if (!connectionCache.TryGetValue(conn.FromNode, out List<ACOConnection> list))
+            {
+                list = new List<ACOConnection>();
+                connectionCache[conn.FromNode] = list;
+            }
+            list.Add(conn);
+        }
     }
 
     /// <summary>
@@ -82,11 +81,15 @@ public class ACOCON
             return new List<ACOConnection>();
         }
 
+        // Build connection cache for O(1) lookups
+        BuildConnectionCache(Connections);
+
         // The node the ant is currently at
         GameObject currentNode;
 
-        // A list of all visited nodes
-        List<GameObject> VisitedNodes = new List<GameObject>();
+        // Use HashSet for O(1) visited checks
+        HashSet<GameObject> VisitedNodes = new HashSet<GameObject>();
+        int waypointCount = WaypointNodes.Length;
 
         for (int i = 0; i < IterationThreshold; i++)
         {
@@ -98,78 +101,69 @@ public class ACOCON
                 ACOAnt aAnt = new ACOAnt();
 
                 // Randomly choose start node
-                currentNode = WaypointNodes[Random.Range(0, WaypointNodes.Length)];
+                currentNode = WaypointNodes[Random.Range(0, waypointCount)];
                 aAnt.StartNode = currentNode;
                 VisitedNodes.Clear();
 
                 // Keep moving through nodes until visited them all
-                while (VisitedNodes.Count < WaypointNodes.Length)
+                while (VisitedNodes.Count < waypointCount)
                 {
-                    // Get all connections from node that haven't been visited
-                    List<ACOConnection> ConnectionsFromNodeAndNotVisited =
-                        AllConnectionsFromNodeAndNotVisited(currentNode, Connections, VisitedNodes);
+                    // Get all connections from node that haven't been visited (using cache)
+                    GetConnectionsFromNodeAndNotVisited(currentNode, VisitedNodes, tempConnectionList);
+
+                    if (tempConnectionList.Count == 0)
+                        break;
 
                     // Sum the product of pheromone level and visibility factor
-                    float TotalPheromoneAndVisibility =
-                        CalculateTotalPheromoneAndVisibility(ConnectionsFromNodeAndNotVisited);
+                    float TotalPheromoneAndVisibility = CalculateTotalPheromoneAndVisibility(tempConnectionList);
 
                     // Calculate path probabilities
-                    foreach (ACOConnection aConnection in ConnectionsFromNodeAndNotVisited)
+                    for (int j = 0; j < tempConnectionList.Count; j++)
                     {
+                        ACOConnection aConnection = tempConnectionList[j];
                         float PathProbability = (Mathf.Pow(aConnection.PheromoneLevel, Alpha) *
-                            Mathf.Pow((1 / aConnection.Distance), Beta));
+                            Mathf.Pow((1f / aConnection.Distance), Beta));
                         PathProbability = PathProbability / Mathf.Max(TotalPheromoneAndVisibility, 0.0001f);
                         aConnection.PathProbability = PathProbability;
                     }
 
                     // Select path with largest probability
-                    ACOConnection largestProbability = null;
-                    if (ConnectionsFromNodeAndNotVisited.Count > 0)
+                    ACOConnection largestProbability = tempConnectionList[0];
+                    for (int i3 = 1; i3 < tempConnectionList.Count; i3++)
                     {
-                        largestProbability = ConnectionsFromNodeAndNotVisited[0];
-                        for (int i3 = 1; i3 < ConnectionsFromNodeAndNotVisited.Count; i3++)
+                        if (tempConnectionList[i3].PathProbability > largestProbability.PathProbability)
                         {
-                            if (ConnectionsFromNodeAndNotVisited[i3].PathProbability >
-                                largestProbability.PathProbability)
+                            largestProbability = tempConnectionList[i3];
+                        }
+                        else if (Mathf.Approximately(tempConnectionList[i3].PathProbability,
+                            largestProbability.PathProbability))
+                        {
+                            // Choose shortest if probabilities are equal
+                            if (tempConnectionList[i3].Distance < largestProbability.Distance)
                             {
-                                largestProbability = ConnectionsFromNodeAndNotVisited[i3];
-                            }
-                            else if (Mathf.Approximately(ConnectionsFromNodeAndNotVisited[i3].PathProbability,
-                                largestProbability.PathProbability))
-                            {
-                                // Choose shortest if probabilities are equal
-                                if (ConnectionsFromNodeAndNotVisited[i3].Distance <
-                                    largestProbability.Distance)
-                                {
-                                    largestProbability = ConnectionsFromNodeAndNotVisited[i3];
-                                }
+                                largestProbability = tempConnectionList[i3];
                             }
                         }
                     }
 
                     // Move to next node
                     VisitedNodes.Add(currentNode);
-                    if (largestProbability != null)
-                    {
-                        currentNode = largestProbability.ToNode;
-                        aAnt.AddTravelledConnection(largestProbability);
-                        aAnt.AddAntTourLength(largestProbability.Distance);
-                    }
-                    else
-                    {
-                        break; // No valid connections
-                    }
+                    currentNode = largestProbability.ToNode;
+                    aAnt.AddTravelledConnection(largestProbability);
+                    aAnt.AddAntTourLength(largestProbability.Distance);
                 }
 
                 // Add connection back to start node
-                foreach (ACOConnection aConnection in Connections)
+                if (connectionCache.TryGetValue(currentNode, out List<ACOConnection> fromConnections))
                 {
-                    if (aConnection.FromNode.Equals(currentNode) &&
-                        aConnection.ToNode.Equals(aAnt.StartNode))
+                    for (int j = 0; j < fromConnections.Count; j++)
                     {
-                        aAnt.AddTravelledConnection(aConnection);
-                        aAnt.AddAntTourLength(aConnection.Distance);
-                        break;
+                        if (fromConnections[j].ToNode == aAnt.StartNode)
+                        {
+                            aAnt.AddTravelledConnection(fromConnections[j]);
+                            aAnt.AddAntTourLength(fromConnections[j].Distance);
+                            break;
+                        }
                     }
                 }
 
@@ -177,14 +171,17 @@ public class ACOCON
             }
 
             // Update pheromone levels
-            foreach (ACOConnection aConnection in Connections)
+            for (int c = 0; c < Connections.Count; c++)
             {
+                ACOConnection aConnection = Connections[c];
                 float Sum = 0;
-                foreach (ACOAnt TmpAnt in Ants)
+                for (int a = 0; a < Ants.Count; a++)
                 {
-                    foreach (ACOConnection tmpConnection in TmpAnt.AntTravelledConnections)
+                    ACOAnt TmpAnt = Ants[a];
+                    var travelledConnections = TmpAnt.AntTravelledConnections;
+                    for (int t = 0; t < travelledConnections.Count; t++)
                     {
-                        if (aConnection.Equals(tmpConnection))
+                        if (aConnection == travelledConnections[t])
                         {
                             Sum += Q / Mathf.Max(TmpAnt.AntTourLength, 0.001f);
                         }
@@ -192,7 +189,7 @@ public class ACOCON
                 }
 
                 // Pheromone update formula
-                float NewPheromoneLevel = (1 - EvaporationFactor) * aConnection.PheromoneLevel + Sum;
+                float NewPheromoneLevel = (1f - EvaporationFactor) * aConnection.PheromoneLevel + Sum;
                 aConnection.PheromoneLevel = Mathf.Max(NewPheromoneLevel, 0.001f);
                 aConnection.PathProbability = 0;
             }
@@ -204,39 +201,45 @@ public class ACOCON
     }
 
     /// <summary>
-    /// Get all connections from a node.
+    /// Get all connections from a node (uses cache if available, otherwise falls back to linear search).
     /// </summary>
     public List<ACOConnection> AllConnectionsFromNode(GameObject FromNode, List<ACOConnection> Connections)
     {
-        List<ACOConnection> ConnectionsFromNode = new List<ACOConnection>();
-        foreach (ACOConnection aConnection in Connections)
+        // Try cache first
+        if (connectionCache != null && connectionCache.TryGetValue(FromNode, out List<ACOConnection> cached))
         {
-            if (aConnection.FromNode == FromNode)
+            return cached;
+        }
+        
+        // Fallback to linear search (for external calls without cache)
+        List<ACOConnection> ConnectionsFromNode = new List<ACOConnection>();
+        for (int i = 0; i < Connections.Count; i++)
+        {
+            if (Connections[i].FromNode == FromNode)
             {
-                ConnectionsFromNode.Add(aConnection);
+                ConnectionsFromNode.Add(Connections[i]);
             }
         }
         return ConnectionsFromNode;
     }
 
     /// <summary>
-    /// Get all connections from a node that haven't been visited.
+    /// Get all connections from a node that haven't been visited (uses cache, writes to output list to avoid allocation).
     /// </summary>
-    private List<ACOConnection> AllConnectionsFromNodeAndNotVisited(
-        GameObject FromNode, List<ACOConnection> Connections, List<GameObject> VisitedList)
+    private void GetConnectionsFromNodeAndNotVisited(GameObject FromNode, HashSet<GameObject> VisitedList, List<ACOConnection> output)
     {
-        List<ACOConnection> ConnectionsFromNode = new List<ACOConnection>();
-        foreach (ACOConnection aConnection in Connections)
+        output.Clear();
+        
+        if (connectionCache != null && connectionCache.TryGetValue(FromNode, out List<ACOConnection> cached))
         {
-            if (aConnection.FromNode == FromNode)
+            for (int i = 0; i < cached.Count; i++)
             {
-                if (!VisitedList.Contains(aConnection.ToNode))
+                if (!VisitedList.Contains(cached[i].ToNode))
                 {
-                    ConnectionsFromNode.Add(aConnection);
+                    output.Add(cached[i]);
                 }
             }
         }
-        return ConnectionsFromNode;
     }
 
     /// <summary>
@@ -245,11 +248,12 @@ public class ACOCON
     private float CalculateTotalPheromoneAndVisibility(List<ACOConnection> ConnectionsFromNodeAndNotVisited)
     {
         float TotalPheromoneAndVisibility = 0;
-        foreach (ACOConnection aConnection in ConnectionsFromNodeAndNotVisited)
+        for (int i = 0; i < ConnectionsFromNodeAndNotVisited.Count; i++)
         {
+            ACOConnection aConnection = ConnectionsFromNodeAndNotVisited[i];
             TotalPheromoneAndVisibility +=
                 (Mathf.Pow(aConnection.PheromoneLevel, Alpha) *
-                 Mathf.Pow((1 / aConnection.Distance), Beta));
+                 Mathf.Pow((1f / aConnection.Distance), Beta));
         }
         return TotalPheromoneAndVisibility;
     }
@@ -259,46 +263,49 @@ public class ACOCON
     /// </summary>
     public List<ACOConnection> GenerateRoute(GameObject StartNode, int MaxPath, List<ACOConnection> Connections)
     {
+        // Ensure cache is built
+        if (connectionCache == null || connectionCache.Count == 0)
+            BuildConnectionCache(Connections);
+            
         GameObject CurrentNode = StartNode;
         List<ACOConnection> Route = new List<ACOConnection>();
-        List<GameObject> visited = new List<GameObject>();
+        HashSet<GameObject> visited = new HashSet<GameObject>();
         int PathCount = 0;
 
         while (CurrentNode != null && PathCount < MaxPath)
         {
             visited.Add(CurrentNode);
-            List<ACOConnection> AllFromConnections = AllConnectionsFromNode(CurrentNode, Connections);
-
-            if (AllFromConnections.Count > 0)
+            
+            if (!connectionCache.TryGetValue(CurrentNode, out List<ACOConnection> AllFromConnections) || 
+                AllFromConnections.Count == 0)
             {
-                // Find highest pheromone connection that hasn't been visited
-                ACOConnection HighestPheromoneConnection = null;
-                float highestPheromone = -1f;
+                break;
+            }
 
-                foreach (ACOConnection aConnection in AllFromConnections)
+            // Find highest pheromone connection that hasn't been visited
+            ACOConnection HighestPheromoneConnection = null;
+            float highestPheromone = -1f;
+
+            for (int i = 0; i < AllFromConnections.Count; i++)
+            {
+                ACOConnection aConnection = AllFromConnections[i];
+                if (!visited.Contains(aConnection.ToNode) || aConnection.ToNode == StartNode)
                 {
-                    if (!visited.Contains(aConnection.ToNode) || aConnection.ToNode == StartNode)
+                    if (aConnection.PheromoneLevel > highestPheromone)
                     {
-                        if (aConnection.PheromoneLevel > highestPheromone)
-                        {
-                            highestPheromone = aConnection.PheromoneLevel;
-                            HighestPheromoneConnection = aConnection;
-                        }
+                        highestPheromone = aConnection.PheromoneLevel;
+                        HighestPheromoneConnection = aConnection;
                     }
                 }
+            }
 
-                if (HighestPheromoneConnection != null)
-                {
-                    Route.Add(HighestPheromoneConnection);
-                    CurrentNode = HighestPheromoneConnection.ToNode;
+            if (HighestPheromoneConnection != null)
+            {
+                Route.Add(HighestPheromoneConnection);
+                CurrentNode = HighestPheromoneConnection.ToNode;
 
-                    // Check if returned to start
-                    if (CurrentNode.Equals(StartNode))
-                    {
-                        break;
-                    }
-                }
-                else
+                // Check if returned to start
+                if (CurrentNode == StartNode)
                 {
                     break;
                 }
@@ -320,47 +327,51 @@ public class ACOCON
     public List<ACOConnection> FindPathToGoal(GameObject StartNode, GameObject GoalNode, 
         List<ACOConnection> Connections, int MaxPath = 100)
     {
+        // Ensure cache is built
+        if (connectionCache == null || connectionCache.Count == 0)
+            BuildConnectionCache(Connections);
+            
         GameObject CurrentNode = StartNode;
         List<ACOConnection> Route = new List<ACOConnection>();
-        List<GameObject> visited = new List<GameObject>();
+        HashSet<GameObject> visited = new HashSet<GameObject>();
         int PathCount = 0;
 
-        while (CurrentNode != null && !CurrentNode.Equals(GoalNode) && PathCount < MaxPath)
+        while (CurrentNode != null && CurrentNode != GoalNode && PathCount < MaxPath)
         {
             visited.Add(CurrentNode);
-            List<ACOConnection> AllFromConnections = AllConnectionsFromNode(CurrentNode, Connections);
-
-            if (AllFromConnections.Count > 0)
+            
+            if (!connectionCache.TryGetValue(CurrentNode, out List<ACOConnection> AllFromConnections) ||
+                AllFromConnections.Count == 0)
             {
-                ACOConnection BestConnection = null;
-                float bestScore = -1f;
+                break;
+            }
 
-                foreach (ACOConnection aConnection in AllFromConnections)
+            ACOConnection BestConnection = null;
+            float bestScore = -1f;
+            Vector3 goalPos = GoalNode.transform.position;
+
+            for (int i = 0; i < AllFromConnections.Count; i++)
+            {
+                ACOConnection aConnection = AllFromConnections[i];
+                if (!visited.Contains(aConnection.ToNode))
                 {
-                    if (!visited.Contains(aConnection.ToNode))
-                    {
-                        // Score based on pheromone and distance to goal
-                        float distToGoal = Vector3.Distance(aConnection.ToNode.transform.position, 
-                            GoalNode.transform.position);
-                        float score = aConnection.PheromoneLevel / Mathf.Max(distToGoal, 0.1f);
+                    // Score based on pheromone and distance to goal
+                    float distToGoalSqr = (aConnection.ToNode.transform.position - goalPos).sqrMagnitude;
+                    float distToGoal = Mathf.Sqrt(distToGoalSqr);
+                    float score = aConnection.PheromoneLevel / Mathf.Max(distToGoal, 0.1f);
 
-                        if (score > bestScore)
-                        {
-                            bestScore = score;
-                            BestConnection = aConnection;
-                        }
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        BestConnection = aConnection;
                     }
                 }
+            }
 
-                if (BestConnection != null)
-                {
-                    Route.Add(BestConnection);
-                    CurrentNode = BestConnection.ToNode;
-                }
-                else
-                {
-                    break;
-                }
+            if (BestConnection != null)
+            {
+                Route.Add(BestConnection);
+                CurrentNode = BestConnection.ToNode;
             }
             else
             {
