@@ -26,6 +26,9 @@ public class ACOTester : MonoBehaviour
     [Tooltip("The starting waypoint for this agent (must be unique per agent)")]
     public GameObject startNode;
 
+    [Tooltip("Color of the car (used for gizmo lines)")]
+    public Color carColor = Color.cyan;
+
     [Tooltip("Goal waypoints where customers will be picked up (assign via Inspector)")]
     public List<GameObject> goalNodes = new List<GameObject>();
 
@@ -78,6 +81,9 @@ public class ACOTester : MonoBehaviour
 
     // Track picked up customers
     private List<GameObject> pickedUpCustomers = new List<GameObject>();
+
+    // Mapping from goal to customer (for ACO selection)
+    private Dictionary<GameObject, GameObject> goalToCustomerMap = new Dictionary<GameObject, GameObject>();
 
     // Public properties for UI
     public int CurrentParcelCount => currentParcelCount;
@@ -160,6 +166,16 @@ public class ACOTester : MonoBehaviour
             Debug.LogError($"[ACOTester] {gameObject.name}: ACOManager not found!");
             enabled = false;
             return;
+        }
+
+        // Build goal-to-customer mapping
+        goalToCustomerMap.Clear();
+        for (int i = 0; i < goalNodes.Count; i++)
+        {
+            if (goalNodes[i] != null && i < customers.Count && customers[i] != null)
+            {
+                goalToCustomerMap[goalNodes[i]] = customers[i];
+            }
         }
 
         // Position agent at start
@@ -272,13 +288,10 @@ public class ACOTester : MonoBehaviour
 
         currentStatus = "ACO: Navigating to customers";
 
-        // Track remaining goals and customers to pick up
+        // Track remaining goals to pick up
         List<GameObject> remainingGoals = new List<GameObject>(goalNodes);
-        List<GameObject> remainingCustomers = new List<GameObject>(customers);
         
-        int totalCustomers = Mathf.Min(goalNodes.Count, customers.Count);
-        if (totalCustomers == 0)
-            totalCustomers = goalNodes.Count;
+        int totalCustomers = goalNodes.Count;
 
         // Navigate to goals using ACO selection (random based on pheromones)
         while (remainingGoals.Count > 0 && parcelsHandled < totalCustomers)
@@ -293,13 +306,17 @@ public class ACOTester : MonoBehaviour
             }
 
             GameObject currentGoal = remainingGoals[selectedIndex];
-            GameObject currentCustomer = (selectedIndex < remainingCustomers.Count) ? remainingCustomers[selectedIndex] : null;
+            
+            // Get the customer mapped to this goal (using the dictionary)
+            GameObject currentCustomer = null;
+            if (goalToCustomerMap.ContainsKey(currentGoal))
+            {
+                currentCustomer = goalToCustomerMap[currentGoal];
+            }
 
             if (currentGoal == null)
             {
                 remainingGoals.RemoveAt(selectedIndex);
-                if (selectedIndex < remainingCustomers.Count)
-                    remainingCustomers.RemoveAt(selectedIndex);
                 continue;
             }
 
@@ -343,10 +360,8 @@ public class ACOTester : MonoBehaviour
             // Handle customer pickup at goal (switches to A* immediately after last customer)
             yield return StartCoroutine(HandleParcelAtGoalWithCustomer(currentGoal, currentCustomer));
             
-            // Remove picked up goal and customer from remaining lists
+            // Remove picked up goal from remaining list
             remainingGoals.RemoveAt(selectedIndex);
-            if (selectedIndex < remainingCustomers.Count)
-                remainingCustomers.RemoveAt(selectedIndex);
             
             // Check if we already switched to A* (last customer was picked up)
             if (allParcelsHandled)
@@ -1275,7 +1290,7 @@ public class ACOTester : MonoBehaviour
         // Draw ACO route
         if (acoRoute != null && acoRoute.Count > 0)
         {
-            Gizmos.color = Color.cyan;
+            Gizmos.color = carColor;
             foreach (ACOConnection conn in acoRoute)
             {
                 if (conn.FromNode != null && conn.ToNode != null)
@@ -1291,7 +1306,7 @@ public class ACOTester : MonoBehaviour
         // Draw current path
         if (currentPath != null && currentPath.Count > 0)
         {
-            Gizmos.color = Color.green;
+            Gizmos.color = carColor;
             foreach (ACOConnection conn in currentPath)
             {
                 if (conn.FromNode != null && conn.ToNode != null)
