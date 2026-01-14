@@ -1,31 +1,38 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-// Used to display text above the node.
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
+
 public class VisGraphWaypointManager : MonoBehaviour
 {
+    // Waypoint type enum (public for ACO/A* access)
+    public enum WaypointTypeEnum { Standard, Start, Goal }
+
+    [Header("Waypoint Configuration")]
+    [Tooltip("Set this waypoint as Standard, Start, or Goal type")]
+    [SerializeField]
+    public WaypointTypeEnum waypointType = WaypointTypeEnum.Goal;
+
+    // Public property to check if this is a goal waypoint
+    public bool IsGoal => waypointType == WaypointTypeEnum.Goal;
+    public bool IsStart => waypointType == WaypointTypeEnum.Start;
+
     // Allow you to set the waypoint text colour.
     [SerializeField]
-    private enum waypointTextColour { Blue, Cyan, Yellow };
-#pragma warning disable
+    private enum waypointTextColour { Blue, Cyan, Yellow, Green, Red };
     [SerializeField]
     private waypointTextColour WaypointTextColour = waypointTextColour.Blue;
-#pragma warning restore
+
     // List of all connections from this node.
+    [Header("Connections")]
     [SerializeField]
     public List<VisGraphConnection> connections = new List<VisGraphConnection>();
     public List<VisGraphConnection> Connections
     {
         get { return connections; }
     }
-    // Allow you to set a waypoint as a start or goal.
-    [SerializeField]
-    private enum waypointPropsList { Standard, Start, Goal };
-#pragma warning disable
-    [SerializeField]
-    private waypointPropsList WaypointType = waypointPropsList.Standard;
-#pragma warning restore
     // Controls if the node type is displayed in the Unity editor.
     private const bool displayType = false;
     // Used to determine if the waypoint is selected.
@@ -49,9 +56,7 @@ public class VisGraphWaypointManager : MonoBehaviour
         infoText = "";
         if (displayType)
         {
-#pragma warning disable
-            infoText = "Type: " + WaypointType.ToString() + " / ";
-#pragma warning restore
+            infoText = "Type: " + waypointType.ToString() + " / ";
         }
         infoText += gameObject.name + "\n Connections: " + Connections.Count;
         switch (WaypointTextColour)
@@ -65,14 +70,29 @@ public class VisGraphWaypointManager : MonoBehaviour
             case waypointTextColour.Yellow:
                 infoTextColor = Color.yellow;
                 break;
+            case waypointTextColour.Green:
+                infoTextColor = Color.green;
+                break;
+            case waypointTextColour.Red:
+                infoTextColor = Color.red;
+                break;
         }
+
+        // Color based on waypoint type
+        if (waypointType == WaypointTypeEnum.Goal)
+            infoTextColor = Color.green;
+        else if (waypointType == WaypointTypeEnum.Start)
+            infoTextColor = Color.cyan;
+
         DrawWaypointAndConnections(ObjectSelected);
+#if UNITY_EDITOR
         if (displayText)
         {
             GUIStyle style = new GUIStyle();
             style.normal.textColor = infoTextColor;
             Handles.Label(transform.position + Vector3.up * 1, infoText, style);
         }
+#endif
         ObjectSelected = false;
     }
     // Draws debug objects when an object is selected.

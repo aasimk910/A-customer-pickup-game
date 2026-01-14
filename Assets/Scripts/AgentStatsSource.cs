@@ -119,7 +119,7 @@ public class AgentStatsSource : MonoBehaviour
         if (otherAgent == null || otherAgent == this) return;
 
         string otherName = string.IsNullOrWhiteSpace(otherAgent.agentName) ? otherAgent.transform.root.name : otherAgent.agentName;
-        lastCollisionMessage = $"{agentName} collided with {otherName}";
+        lastCollisionMessage = $"{agentName} is moving in its path and {otherName} moved side to avoid collision";
         lastCollisionTime = Time.time;
     }
 
