@@ -8,12 +8,18 @@ using UnityEngine;
 /// </summary>
 public class ACOCON
 {
+    #region ACO Parameters
+    
     // ACO Parameters (set by ACOManager) - using auto-properties
     public float DefaultPheromone { get; set; } = 1.0f;
     public float Alpha { get; set; } = 1.0f;
     public float Beta { get; set; } = 2.0f;
     public float EvaporationFactor { get; set; } = 0.5f;
     public float Q { get; set; } = 100f;
+    
+    #endregion
+
+    #region Private State
 
     // Ants moving through the graph
     public List<ACOAnt> Ants = new List<ACOAnt>();
@@ -26,10 +32,18 @@ public class ACOCON
 
     // Reusable list to avoid allocations
     private List<ACOConnection> tempConnectionList = new List<ACOConnection>();
+    
+    #endregion
+
+    #region Constructor
 
     public ACOCON()
     {
     }
+    
+    #endregion
+
+    #region Connection Cache
 
     /// <summary>
     /// Build connection cache for O(1) lookup by FromNode.
@@ -54,6 +68,10 @@ public class ACOCON
             list.Add(conn);
         }
     }
+    
+    #endregion
+
+    #region ACO Algorithm
 
     /// <summary>
     /// Run ACO algorithm to find optimal route through goal nodes.
@@ -199,6 +217,10 @@ public class ACOCON
         MyRoute = GenerateRoute(StartNode, MaxPathLength, Connections);
         return MyRoute;
     }
+    
+    #endregion
+
+    #region Connection Query Helpers
 
     /// <summary>
     /// Get all connections from a node (uses cache if available, otherwise falls back to linear search).
@@ -241,6 +263,10 @@ public class ACOCON
             }
         }
     }
+    
+    #endregion
+
+    #region Probability Calculation
 
     /// <summary>
     /// Calculate total pheromone and visibility for probability calculation.
@@ -257,6 +283,10 @@ public class ACOCON
         }
         return TotalPheromoneAndVisibility;
     }
+    
+    #endregion
+
+    #region Route Generation
 
     /// <summary>
     /// Generate route by following highest pheromone connections.
@@ -383,4 +413,6 @@ public class ACOCON
 
         return Route;
     }
+    
+    #endregion
 }

@@ -6,9 +6,15 @@ using UnityEngine;
 /// </summary>
 public class Connection
 {
+    #region Private Fields
+    
     private float cost = 0;
     private GameObject fromNode;
     private GameObject toNode;
+    
+    #endregion
+
+    #region Properties
 
     public float Cost
     {
@@ -42,8 +48,14 @@ public class Connection
             cost = 0; // Reset cost for recalculation
         }
     }
+    
+    #endregion
+
+    #region Constructor
 
     public Connection()
     {
     }
+    
+    #endregion
 }

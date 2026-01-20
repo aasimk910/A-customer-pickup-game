@@ -7,16 +7,26 @@ using UnityEngine;
 /// </summary>
 public class ACOAnt
 {
+    #region Properties
+    
     public float AntTourLength { get; set; } = 0;
 
     private List<ACOConnection> antTravelledConnections = new List<ACOConnection>();
     public List<ACOConnection> AntTravelledConnections => antTravelledConnections;
 
     public GameObject StartNode { get; set; }
+    
+    #endregion
 
+    #region Constructor
+    
     public ACOAnt()
     {
     }
+    
+    #endregion
+
+    #region Public Methods
 
     public void AddAntTourLength(float tourLength)
     {
@@ -34,4 +44,6 @@ public class ACOAnt
         antTravelledConnections.Clear();
         StartNode = null;
     }
+    
+    #endregion
 }

@@ -7,14 +7,24 @@ using UnityEngine;
 /// </summary>
 public class PathfindingList
 {
+    #region Private Fields
+    
     // Dictionary for O(1) Contains and Find operations
     private Dictionary<GameObject, NodeRecord> nodeRecordDict = new Dictionary<GameObject, NodeRecord>();
     // List maintained for GetSmallestElement (could use SortedSet but iteration is rare)
     private List<NodeRecord> nodeRecordList = new List<NodeRecord>();
+    
+    #endregion
+
+    #region Constructor
 
     public PathfindingList()
     {
     }
+    
+    #endregion
+
+    #region List Operations
 
     // Add NodeRecord - O(1) dictionary insert + O(1) list append
     public void AddNodeRecord(NodeRecord nodeRecord)
@@ -41,6 +51,10 @@ public class PathfindingList
     {
         return nodeRecordList.Count;
     }
+    
+    #endregion
+
+    #region Query Operations
 
     // Get the smallest element - O(n) but unavoidable without more complex data structure
     public NodeRecord GetSmallestElement()
@@ -75,4 +89,6 @@ public class PathfindingList
         }
         return null;
     }
+    
+    #endregion
 }

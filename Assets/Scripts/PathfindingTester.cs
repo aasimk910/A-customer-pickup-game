@@ -2,11 +2,21 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// A* Pathfinding agent - navigates between waypoints using A* algorithm.
+/// Handles customer pickup and return journey from ACO handoff.
+/// </summary>
 public class PathfindingTester : MonoBehaviour
 {
+    #region Private Fields - Pathfinding
+    
     private AStarManager AStarManager = new AStarManager();
     private List<GameObject> Waypoints = new List<GameObject>();
     private List<Connection> ConnectionArray = new List<Connection>();
+    
+    #endregion
+
+    #region Inspector Fields - Waypoints
 
     [SerializeField] public GameObject start;
     [SerializeField] public GameObject pickup;
@@ -16,6 +26,10 @@ public class PathfindingTester : MonoBehaviour
 
     [SerializeField] private Transform passengerSeat;
     [SerializeField] private float seatMoveDuration = 1.5f;
+    
+    #endregion
+
+    #region Inspector Fields - Movement
 
     private Vector3 OffSet = new Vector3(0, 0.3f, 0);
 
@@ -23,6 +37,10 @@ public class PathfindingTester : MonoBehaviour
     [SerializeField] private float turnSpeed = 5f;
     [SerializeField] private bool agentMove = true;
     [SerializeField] private float waitAtPickupSeconds = 3f;
+    
+    #endregion
+
+    #region Inspector Fields - Customer Settings
 
     [Header("Customer Count (Live Status)")]
     [SerializeField] private bool resetCustomerCountOnStart = true;
@@ -33,9 +51,12 @@ public class PathfindingTester : MonoBehaviour
     [SerializeField, Range(0f, 0.5f)] private float speedPenaltyPerCustomer = 0.10f; // 10%
     [SerializeField, Range(0.1f, 1f)] private float minCustomerSpeedMultiplier = 0.25f;
     [SerializeField] private bool compoundPenalty = true;
+    
+    #endregion
+
+    #region Private State - Navigation
 
     private int currentTarget = 0;
-
     private int startToPickupCount = 0;
     private int pickupToEndCount = 0;
     private int endToStartCount = 0;
@@ -46,6 +67,10 @@ public class PathfindingTester : MonoBehaviour
     private float inheritedSpeed = 0f;
     private int inheritedPackageCount = 0;
     private bool useInheritedSpeed = false;
+    
+    #endregion
+
+    #region Private State - Statistics
 
     private float elapsedTime = 0f;
     private float totalDistanceTravelled = 0f;
@@ -63,8 +88,10 @@ public class PathfindingTester : MonoBehaviour
     
     // Track if waiting for another agent's pickup
     private bool isWaitingForPickup = false;
+    
+    #endregion
 
-    // Collision Avoidance State - Raycast-based
+    #region Collision Avoidance State
     private bool isYielding = false;
     private Vector3 yieldTargetPosition;
     private float yieldTimer = 0f;
@@ -74,6 +101,7 @@ public class PathfindingTester : MonoBehaviour
     [SerializeField] private float raycastDistance = 20f;        // How far to detect in front and rear
     [SerializeField] private float raycastWidth = 8f;            // How far to detect on sides (left/right)
     [SerializeField] private float sideStepDistance = 5f;        // How far to move aside immediately
+    [SerializeField] private float sideStepBackDistance = 10f;   // How far to move back on side collision
     [SerializeField] private float yieldWaitTime = 3f;           // How long to wait after stepping aside
     [SerializeField] private float safeDistance = 8f;            // Min distance to maintain
     
@@ -82,11 +110,19 @@ public class PathfindingTester : MonoBehaviour
     // Track if already initialized
     private bool isInitialized = false;
     
+    #endregion
+
+    #region Cached Values for Performance
+    
     // Cached values for performance
     private static Collider[] overlapResults = new Collider[20];  // Reusable array for Physics.OverlapSphereNonAlloc
     private Vector3 cachedForward;
     private Vector3 cachedRight;
     private Vector3 cachedPosition;
+    
+    #endregion
+
+    #region Unity Lifecycle Methods
 
     void Start()
     {
@@ -153,6 +189,10 @@ public class PathfindingTester : MonoBehaviour
         
         Debug.Log($"[PathfindingTester] {gameObject.name}: Inherited speed {speed:F1}, packages {packageCount} from ACOTester");
     }
+    
+    #endregion
+
+    #region Initialization
 
     void ReInitializeForReturn()
     {
@@ -313,6 +353,10 @@ public class PathfindingTester : MonoBehaviour
 
         isInitialized = true;
     }
+    
+    #endregion
+
+    #region Gizmo Drawing
 
     void OnDrawGizmos()
     {
@@ -355,6 +399,10 @@ public class PathfindingTester : MonoBehaviour
             }
         }
     }
+    
+    #endregion
+
+    #region Movement Update
 
     void Update()
     {
@@ -497,6 +545,10 @@ public class PathfindingTester : MonoBehaviour
             }
         }
     }
+    
+    #endregion
+
+    #region Speed Calculation
 
     /// <summary>
     /// Get the current effective speed of this agent (for collision avoidance).
@@ -518,6 +570,8 @@ public class PathfindingTester : MonoBehaviour
         mult = Mathf.Clamp(mult, minCustomerSpeedMultiplier, 1f);
         return moveSpeed * mult;
     }
+    
+    #endregion
 
     #region Collision Avoidance - Raycast Based
 
@@ -525,10 +579,10 @@ public class PathfindingTester : MonoBehaviour
     /// Perform raycast-based collision detection around the agent.
     /// Uses raycastDistance for front/rear and raycastWidth for sides.
     /// Returns info about detected agent if one is nearby.
-    /// Also returns whether agent is approaching from behind.
+    /// Also returns whether agent is approaching from behind and if detection is from side.
     /// Uses NonAlloc version to avoid GC allocations.
     /// </summary>
-    private (bool detected, float otherSpeed, float distance, Transform otherTransform, bool isFromBehind) RaycastForAgentAhead()
+    private (bool detected, float otherSpeed, float distance, Transform otherTransform, bool isFromBehind, bool isFromSide) RaycastForAgentAhead()
     {
         cachedPosition = transform.position;
         cachedForward = transform.forward;
@@ -566,13 +620,21 @@ public class PathfindingTester : MonoBehaviour
                     float approachDot = Vector3.Dot(otherForward, -toOther.normalized);
                     bool isApproaching = approachDot > 0.3f; // Other agent is heading towards us
                     
+                    // Check if detection is from the side
+                    float forwardDot = Vector3.Dot(cachedForward, toOther.normalized);
+                    bool isSideDetection = Mathf.Abs(forwardDot) < 0.5f; // Side if not mostly in front or behind
+                    
                     if (isFromBehind && isApproaching)
                     {
-                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, true);
+                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, true, false);
+                    }
+                    else if (isSideDetection)
+                    {
+                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, false, true);
                     }
                     else
                     {
-                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, false);
+                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, false, false);
                     }
                 }
             }
@@ -595,13 +657,21 @@ public class PathfindingTester : MonoBehaviour
                     float approachDot = Vector3.Dot(otherForward, -toOther.normalized);
                     bool isApproaching = approachDot > 0.3f; // Other agent is heading towards us
                     
+                    // Check if detection is from the side
+                    float forwardDotPF = Vector3.Dot(cachedForward, toOther.normalized);
+                    bool isSideDetectionPF = Mathf.Abs(forwardDotPF) < 0.5f; // Side if not mostly in front or behind
+                    
                     if (isFromBehind && isApproaching)
                     {
-                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, true);
+                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, true, false);
+                    }
+                    else if (isSideDetectionPF)
+                    {
+                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, false, true);
                     }
                     else
                     {
-                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, false);
+                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, false, false);
                     }
                 }
             }
@@ -614,30 +684,30 @@ public class PathfindingTester : MonoBehaviour
         if (Physics.Raycast(origin, cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false, false);
         }
         
         // Rear raycast - agents behind us approaching
         if (Physics.Raycast(origin, -cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, true);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, true, false);
         }
         
-        // Side raycasts (using raycastWidth)
+        // Side raycasts (using raycastWidth) - mark as side detection
         if (Physics.Raycast(origin, cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false, true);
         }
         
         if (Physics.Raycast(origin, -cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false, true);
         }
 
-        return (false, 0f, 0f, null, false);
+        return (false, 0f, 0f, null, false, false);
     }
     
     /// <summary>
@@ -699,6 +769,7 @@ public class PathfindingTester : MonoBehaviour
 
     /// <summary>
     /// Execute collision avoidance: slow down, move aside, wait for 3 seconds.
+    /// For side collisions, the slower agent moves back to previous waypoint.
     /// Returns: (shouldStop, speedMultiplier, sideStepDir, isFirstYield)
     /// </summary>
     private (bool shouldStop, float speedMultiplier, Vector3 sideStepDir, bool isFirstYield) ProcessCollisionAvoidance()
@@ -728,13 +799,34 @@ public class PathfindingTester : MonoBehaviour
             return (true, 0f, Vector3.zero, false);
         }
 
-        var (detected, otherSpeed, distance, otherTransform, isFromBehind) = RaycastForAgentAhead();
+        var (detected, otherSpeed, distance, otherTransform, isFromBehind, isFromSide) = RaycastForAgentAhead();
         
         float maxDetectRange = Mathf.Max(raycastDistance, raycastWidth);
         if (detected && distance < maxDetectRange)
         {
+            // SIDE COLLISION - slower agent moves back to previous waypoint
+            if (isFromSide && ShouldYieldTo(otherSpeed))
+            {
+                isYielding = true;
+                detectedAgent = otherTransform;
+                yieldTimer = 0f;
+                
+                // Move back to previous waypoint position
+                MoveBackToPreviousWaypoint();
+                
+                // Get other agent name for HUD message
+                string otherName = otherTransform.root.name;
+                string myName = stats != null ? stats.agentName : gameObject.name;
+                AgentStatsSource.lastCollisionMessage = $"{myName} moved back (side collision) for {otherName}";
+                
+                statusText = $"MOVED BACK (side) - Waiting {yieldWaitTime}s";
+                if (stats != null) stats.deliveryStatus = statusText;
+                Debug.Log($"[PathfindingTester] {gameObject.name}: SIDE COLLISION! Moving back to previous waypoint and waiting {yieldWaitTime}s (my speed: {mySpeed:F1}, other: {otherSpeed:F1})");
+
+                return (true, 0f, Vector3.zero, false);
+            }
             // If faster agent is approaching from behind, step aside immediately
-            if (isFromBehind && ShouldYieldTo(otherSpeed))
+            else if (isFromBehind && ShouldYieldTo(otherSpeed))
             {
                 isYielding = true;
                 detectedAgent = otherTransform;
@@ -787,7 +879,31 @@ public class PathfindingTester : MonoBehaviour
         return (false, 1f, Vector3.zero, false);
     }
 
+    /// <summary>
+    /// Move the agent back by the assigned sideStepBackDistance.
+    /// Called when a side collision is detected and this agent should yield.
+    /// </summary>
+    private void MoveBackToPreviousWaypoint()
+    {
+        if (ConnectionArray.Count == 0) return;
+        
+        // Move back by the assigned step back distance (opposite to forward direction)
+        Vector3 backDirection = -transform.forward;
+        Vector3 newPosition = transform.position + backDirection * sideStepBackDistance;
+        
+        // Keep the same Y position to avoid clipping through ground
+        newPosition.y = transform.position.y;
+        
+        // Teleport to the new position
+        transform.position = newPosition;
+        yieldTargetPosition = newPosition;
+        
+        Debug.Log($"[PathfindingTester] {gameObject.name}: Moved back {sideStepBackDistance} units to {newPosition}");
+    }
+
     #endregion
+
+    #region Nearby Agent Detection
 
     /// <summary>
     /// Check if a nearby agent is picking up a customer.
@@ -845,6 +961,10 @@ public class PathfindingTester : MonoBehaviour
         if (stats != null)
             stats.deliveryStatus = "Returning";
     }
+    
+    #endregion
+
+    #region Customer Pickup
 
     // =========================================================
     // CUSTOMER PICKUP
@@ -910,4 +1030,6 @@ public class PathfindingTester : MonoBehaviour
         isPickingUp = false; // Done picking up
         agentMove = true;
     }
+    
+    #endregion
 }

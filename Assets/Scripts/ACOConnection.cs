@@ -6,15 +6,25 @@ using UnityEngine;
 /// </summary>
 public class ACOConnection
 {
+    #region Properties
+    
     public float Distance { get; private set; }
     public float PheromoneLevel { get; set; }
     public float PathProbability { get; set; }
     public GameObject FromNode { get; private set; }
     public GameObject ToNode { get; private set; }
+    
+    #endregion
 
+    #region Constructor
+    
     public ACOConnection()
     {
     }
+    
+    #endregion
+
+    #region Public Methods
 
     public void SetConnection(GameObject fromNode, GameObject toNode, float defaultPheromoneLevel)
     {
@@ -24,4 +34,6 @@ public class ACOConnection
         PheromoneLevel = defaultPheromoneLevel;
         PathProbability = 0;
     }
+    
+    #endregion
 }

@@ -12,6 +12,8 @@ using UnityEngine;
 /// </summary>
 public class ACOTester : MonoBehaviour
 {
+    #region Enums and Configuration
+    
     [Header("Scenario Type")]
     [Tooltip("Pickup: Speed decreases (0.9^parcels). Drop: Speed increases (1.1^parcels).")]
     public ScenarioType scenarioType = ScenarioType.Pickup;
@@ -21,7 +23,11 @@ public class ACOTester : MonoBehaviour
         Pickup,
         Drop
     }
+    
+    #endregion
 
+    #region Inspector Fields
+    
     [Header("Agent Configuration")]
     [Tooltip("The starting waypoint for this agent (must be unique per agent)")]
     public GameObject startNode;
@@ -70,7 +76,11 @@ public class ACOTester : MonoBehaviour
 
     [Tooltip("A* Pathfinding Tester (for return journey - should be disabled initially)")]
     public PathfindingTester aStarTester;
+    
+    #endregion
 
+    #region Runtime Status Fields
+    
     [Header("Runtime Status (Read Only)")]
     [SerializeField] private int currentParcelCount = 0;
     [SerializeField] private int parcelsHandled = 0;
@@ -78,7 +88,11 @@ public class ACOTester : MonoBehaviour
     [SerializeField] private float totalDistanceTravelled = 0f;
     [SerializeField] private bool isMoving = false;
     [SerializeField] private int currentGoalIndex = 0;
+    
+    #endregion
 
+    #region Private State Variables
+    
     // Track picked up customers
     private List<GameObject> pickedUpCustomers = new List<GameObject>();
 
@@ -106,7 +120,11 @@ public class ACOTester : MonoBehaviour
     private bool allParcelsHandled = false;
     private bool returnedToStart = false;
     private GameObject lastVisitedNode = null; // Track the last waypoint visited for handoff to PathfindingTester
+    
+    #endregion
 
+    #region Collision Avoidance State
+    
     // Collision Avoidance State - Raycast-based
     private bool isYielding = false;
     private Vector3 yieldTargetPosition;
@@ -117,11 +135,16 @@ public class ACOTester : MonoBehaviour
     [SerializeField] private float raycastDistance = 20f;        // How far to detect in front and rear
     [SerializeField] private float raycastWidth = 8f;            // How far to detect on sides (left/right)
     [SerializeField] private float sideStepDistance = 5f;        // How far to move aside immediately
+    [SerializeField] private float sideStepBackDistance = 10f;   // How far to move back on side collision
     [SerializeField] private float yieldWaitTime = 3f;           // How long to wait after stepping aside
     [SerializeField] private float safeDistance = 8f;            // Min distance to maintain
     
     public bool IsYielding => isYielding;              // Public for HUD/debugging
+    
+    #endregion
 
+    #region Component References and Cached Values
+    
     // Component references
     private AgentStatsSource stats;
     private Rigidbody cachedRigidbody;
@@ -131,6 +154,10 @@ public class ACOTester : MonoBehaviour
     private Vector3 cachedForward;
     private Vector3 cachedRight;
     private Vector3 cachedPosition;
+    
+    #endregion
+
+    #region Unity Lifecycle Methods
 
     void Start()
     {
@@ -244,6 +271,10 @@ public class ACOTester : MonoBehaviour
             stats.deliveryStatus = currentStatus;
         }
     }
+    
+    #endregion
+
+    #region Speed Calculation
 
     /// <summary>
     /// Calculate speed based on parcel count.
@@ -271,6 +302,10 @@ public class ACOTester : MonoBehaviour
 
         return baseSpeed * multiplier;
     }
+    
+    #endregion
+
+    #region ACO Navigation
 
     /// <summary>
     /// Main ACO navigation coroutine.
@@ -382,6 +417,10 @@ public class ACOTester : MonoBehaviour
             yield return StartCoroutine(SwitchToAStar());
         }
     }
+    
+    #endregion
+
+    #region ACO Goal Selection
 
     /// <summary>
     /// Select the next goal using ACO probability (pheromone levels + distance heuristic).
@@ -467,6 +506,10 @@ public class ACOTester : MonoBehaviour
 
         return totalPheromone / pathToGoal.Count;
     }
+    
+    #endregion
+
+    #region Path Following and Movement
 
     /// <summary>
     /// Follow a path of ACO connections.
@@ -620,6 +663,10 @@ public class ACOTester : MonoBehaviour
             yield return null;
         }
     }
+    
+    #endregion
+
+    #region Customer Pickup and Handling
 
     /// <summary>
     /// Handle customer pickup at goal with specific customer (for ACO random selection).
@@ -766,6 +813,10 @@ public class ACOTester : MonoBehaviour
         customer.transform.localPosition = Vector3.zero;
         customer.transform.localRotation = Quaternion.identity;
     }
+    
+    #endregion
+
+    #region A* Pathfinding Transition
 
     /// <summary>
     /// Switch from ACO to A* for return journey.
@@ -883,6 +934,10 @@ public class ACOTester : MonoBehaviour
 
         this.enabled = false;
     }
+    
+    #endregion
+
+    #region Nearby Agent Detection
 
     /// <summary>
     /// Find a nearby agent that is currently picking up a customer.
@@ -941,6 +996,8 @@ public class ACOTester : MonoBehaviour
         isMoving = true;
         currentStatus = "Resuming path";
     }
+    
+    #endregion
 
     #region Collision Avoidance - Raycast Based
 
@@ -948,10 +1005,10 @@ public class ACOTester : MonoBehaviour
     /// Perform raycast-based collision detection around the agent.
     /// Uses raycastDistance for front/rear and raycastWidth for sides.
     /// Returns info about detected agent if one is nearby.
-    /// Also returns whether agent is approaching from behind.
+    /// Also returns whether agent is approaching from behind and if detection is from side.
     /// Uses NonAlloc version to avoid GC allocations.
     /// </summary>
-    private (bool detected, float otherSpeed, float distance, Transform otherTransform, bool isFromBehind) RaycastForAgentAhead()
+    private (bool detected, float otherSpeed, float distance, Transform otherTransform, bool isFromBehind, bool isFromSide) RaycastForAgentAhead()
     {
         cachedPosition = transform.position;
         cachedForward = transform.forward;
@@ -991,11 +1048,14 @@ public class ACOTester : MonoBehaviour
                     
                     if (isFromBehind && isApproaching)
                     {
-                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, true);
+                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, true, false);
                     }
                     else
                     {
-                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, false);
+                        // Check if detection is from the side
+                        float forwardDot = Vector3.Dot(cachedForward, toOther.normalized);
+                        bool isSideDetection = Mathf.Abs(forwardDot) < 0.5f; // Side if not mostly in front or behind
+                        return (true, otherACO.CalculateSpeed(), distance, otherACO.transform, false, isSideDetection);
                     }
                 }
             }
@@ -1020,11 +1080,14 @@ public class ACOTester : MonoBehaviour
                     
                     if (isFromBehind && isApproaching)
                     {
-                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, true);
+                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, true, false);
                     }
                     else
                     {
-                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, false);
+                        // Check if detection is from the side
+                        float forwardDotPF = Vector3.Dot(cachedForward, toOther.normalized);
+                        bool isSideDetectionPF = Mathf.Abs(forwardDotPF) < 0.5f; // Side if not mostly in front or behind
+                        return (true, otherPF.GetCurrentSpeed(), distance, otherPF.transform, false, isSideDetectionPF);
                     }
                 }
             }
@@ -1037,30 +1100,30 @@ public class ACOTester : MonoBehaviour
         if (Physics.Raycast(origin, cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false, false);
         }
         
         // Rear raycast - agents behind us approaching
         if (Physics.Raycast(origin, -cachedForward, out hit, raycastDistance))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, true);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, true, false);
         }
         
-        // Side raycasts (using raycastWidth)
+        // Side raycasts (using raycastWidth) - mark as side detection
         if (Physics.Raycast(origin, cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false, true);
         }
         
         if (Physics.Raycast(origin, -cachedRight, out hit, raycastWidth))
         {
             var result = CheckHitForAgent(hit);
-            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false);
+            if (result.detected) return (result.detected, result.otherSpeed, result.distance, result.otherTransform, false, true);
         }
 
-        return (false, 0f, 0f, null, false);
+        return (false, 0f, 0f, null, false, false);
     }
     
     /// <summary>
@@ -1124,6 +1187,7 @@ public class ACOTester : MonoBehaviour
 
     /// <summary>
     /// Execute collision avoidance: slow down, move aside, wait for 3 seconds.
+    /// For side collisions, the slower agent moves back by assigned distance.
     /// Returns: (shouldStop, speedMultiplier, sideStepDir, isFirstYield)
     /// </summary>
     private (bool shouldStop, float speedMultiplier, Vector3 sideStepDir, bool isFirstYield) ProcessCollisionAvoidance()
@@ -1153,13 +1217,34 @@ public class ACOTester : MonoBehaviour
             return (true, 0f, Vector3.zero, false);
         }
 
-        var (detected, otherSpeed, distance, otherTransform, isFromBehind) = RaycastForAgentAhead();
+        var (detected, otherSpeed, distance, otherTransform, isFromBehind, isFromSide) = RaycastForAgentAhead();
         
         float maxDetectRange = Mathf.Max(raycastDistance, raycastWidth);
         if (detected && distance < maxDetectRange)
         {
+            // SIDE COLLISION - slower agent moves back by assigned distance
+            if (isFromSide && ShouldYieldTo(otherSpeed))
+            {
+                isYielding = true;
+                detectedAgent = otherTransform;
+                yieldTimer = 0f;
+                
+                // Move back by assigned distance
+                MoveBackByDistance();
+                
+                // Get other agent name for HUD message
+                string otherName = otherTransform.root.name;
+                string myName = stats != null ? stats.agentName : gameObject.name;
+                AgentStatsSource.lastCollisionMessage = $"{myName} moved back (side collision) for {otherName}";
+                
+                currentStatus = $"MOVED BACK (side) - Waiting {yieldWaitTime}s";
+                if (stats != null) stats.deliveryStatus = currentStatus;
+                Debug.Log($"[ACOTester] {gameObject.name}: SIDE COLLISION! Moving back {sideStepBackDistance} units and waiting {yieldWaitTime}s (my speed: {mySpeed:F1}, other: {otherSpeed:F1})");
+
+                return (true, 0f, Vector3.zero, false);
+            }
             // If faster agent is approaching from behind, step aside immediately
-            if (isFromBehind && ShouldYieldTo(otherSpeed))
+            else if (isFromBehind && ShouldYieldTo(otherSpeed))
             {
                 isYielding = true;
                 detectedAgent = otherTransform;
@@ -1212,7 +1297,29 @@ public class ACOTester : MonoBehaviour
         return (false, 1f, Vector3.zero, false);
     }
 
+    /// <summary>
+    /// Move the agent back by the assigned sideStepBackDistance.
+    /// Called when a side collision is detected and this agent should yield.
+    /// </summary>
+    private void MoveBackByDistance()
+    {
+        // Move back by the assigned step back distance (opposite to forward direction)
+        Vector3 backDirection = -transform.forward;
+        Vector3 newPosition = transform.position + backDirection * sideStepBackDistance;
+        
+        // Keep the same Y position to avoid clipping through ground
+        newPosition.y = transform.position.y;
+        
+        // Teleport to the new position
+        transform.position = newPosition;
+        yieldTargetPosition = newPosition;
+        
+        Debug.Log($"[ACOTester] {gameObject.name}: Moved back {sideStepBackDistance} units to {newPosition}");
+    }
+
     #endregion
+
+    #region Gizmos and Debug Drawing
 
     void OnDrawGizmos()
     {
@@ -1292,4 +1399,6 @@ public class ACOTester : MonoBehaviour
             Gizmos.DrawWireSphere(startNode.transform.position, 1.2f);
         }
     }
+    
+    #endregion
 }

@@ -7,6 +7,8 @@ using UnityEngine;
 /// </summary>
 public class ACOManager : MonoBehaviour
 {
+    #region Inspector Fields - ACO Parameters
+    
     [Header("ACO Parameters (Configurable via Inspector)")]
     [Tooltip("Importance of pheromone trail (α)")]
     [Range(0.1f, 5f)]
@@ -27,6 +29,10 @@ public class ACOManager : MonoBehaviour
     [Tooltip("Pheromone evaporation rate (ρ) - 0 to 1")]
     [Range(0f, 1f)]
     public float evaporationFactor = 0.5f;
+    
+    #endregion
+
+    #region Inspector Fields - Simulation Settings
 
     [Header("ACO Simulation Settings")]
     [Tooltip("Number of iterations for ACO algorithm")]
@@ -40,13 +46,19 @@ public class ACOManager : MonoBehaviour
     [Tooltip("Maximum path length")]
     [Range(5, 100)]
     public int maxPathLength = 50;
+    
+    #endregion
 
-    // Properties for external access
+    #region Public Properties
     public float Alpha => alpha;
     public float Beta => beta;
     public float QValue => qValue;
     public float DefaultPheromone => defaultPheromone;
     public float EvaporationFactor => evaporationFactor;
+    
+    #endregion
+
+    #region Private State
 
     // The ACO Controller
     private ACOCON acoController;
@@ -67,6 +79,10 @@ public class ACOManager : MonoBehaviour
     // Is initialized flag
     private bool isInitialized = false;
     public bool IsInitialized => isInitialized;
+    
+    #endregion
+
+    #region Unity Lifecycle Methods
 
     void Awake()
     {
@@ -83,6 +99,10 @@ public class ACOManager : MonoBehaviour
     {
         InitializeGraph();
     }
+    
+    #endregion
+
+    #region Parameter Management
 
     /// <summary>
     /// Update ACO controller with current Inspector values.
@@ -98,6 +118,10 @@ public class ACOManager : MonoBehaviour
         acoController.DefaultPheromone = defaultPheromone;
         acoController.EvaporationFactor = evaporationFactor;
     }
+    
+    #endregion
+
+    #region Graph Initialization
 
     /// <summary>
     /// Initialize the graph from waypoints tagged as "Waypoint".
@@ -144,6 +168,10 @@ public class ACOManager : MonoBehaviour
         isInitialized = true;
         Debug.Log($"[ACOManager] Initialized with {waypointNodes.Count} goal waypoints and {connections.Count} connections.");
     }
+    
+    #endregion
+
+    #region ACO Algorithm
 
     /// <summary>
     /// Run the ACO algorithm to find optimal route.
@@ -181,6 +209,10 @@ public class ACOManager : MonoBehaviour
 
         return acoController.FindPathToGoal(startNode, goalNode, connections, maxPathLength);
     }
+    
+    #endregion
+
+    #region Utility Methods
 
     /// <summary>
     /// Get all connections from a specific node.
@@ -225,6 +257,10 @@ public class ACOManager : MonoBehaviour
             connections[i].PheromoneLevel = defaultPheromone;
         }
     }
+    
+    #endregion
+
+    #region Editor Support
 
     void OnValidate()
     {
@@ -232,4 +268,6 @@ public class ACOManager : MonoBehaviour
         if (acoController != null)
             UpdateACOParameters();
     }
+    
+    #endregion
 }

@@ -1,11 +1,19 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+
 public class AStar
 {
+    #region Constructor
+    
     public AStar()
     {
     }
+    
+    #endregion
+
+    #region A* Pathfinding Algorithm
+    
     public List<Connection> PathfindAStar(Graph aGraph, GameObject start, GameObject end,
     Heuristic myHeuristic)
     {
@@ -120,4 +128,6 @@ OpenList.RemoveNodeRecord(CurrentRecord);
             return tempList2;
         }
     }
+    
+    #endregion
 }

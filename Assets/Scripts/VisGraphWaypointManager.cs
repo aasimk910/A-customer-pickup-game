@@ -5,25 +5,46 @@ using UnityEngine;
 using UnityEditor;
 #endif
 
+/// <summary>
+/// Manages waypoint configuration and connections for pathfinding.
+/// </summary>
 public class VisGraphWaypointManager : MonoBehaviour
 {
+    #region Enums
+    
     // Waypoint type enum (public for ACO/A* access)
     public enum WaypointTypeEnum { Standard, Start, Goal }
+    
+    #endregion
+
+    #region Inspector Fields
 
     [Header("Waypoint Configuration")]
     [Tooltip("Set this waypoint as Standard, Start, or Goal type")]
     [SerializeField]
     public WaypointTypeEnum waypointType = WaypointTypeEnum.Goal;
+    
+    #endregion
+
+    #region Properties
 
     // Public property to check if this is a goal waypoint
     public bool IsGoal => waypointType == WaypointTypeEnum.Goal;
     public bool IsStart => waypointType == WaypointTypeEnum.Start;
+    
+    #endregion
+
+    #region Display Settings
 
     // Allow you to set the waypoint text colour.
     [SerializeField]
     private enum waypointTextColour { Blue, Cyan, Yellow, Green, Red };
     [SerializeField]
     private waypointTextColour WaypointTextColour = waypointTextColour.Blue;
+    
+    #endregion
+
+    #region Connections
 
     // List of all connections from this node.
     [Header("Connections")]
@@ -33,6 +54,11 @@ public class VisGraphWaypointManager : MonoBehaviour
     {
         get { return connections; }
     }
+    
+    #endregion
+
+    #region Private State
+    
     // Controls if the node type is displayed in the Unity editor.
     private const bool displayType = false;
     // Used to determine if the waypoint is selected.
@@ -41,6 +67,11 @@ public class VisGraphWaypointManager : MonoBehaviour
     private const bool displayText = true;
     private string infoText = "";
     private Color infoTextColor;
+    
+    #endregion
+
+    #region Unity Lifecycle Methods
+    
     // Start is called before the first frame update
     void Start()
     {
@@ -49,6 +80,11 @@ public class VisGraphWaypointManager : MonoBehaviour
     void Update()
     {
     }
+    
+    #endregion
+
+    #region Gizmo Drawing
+    
     // Draws debug objects in the editor and during editor play (if option set).
     void OnDrawGizmos()
     {
@@ -100,6 +136,11 @@ public class VisGraphWaypointManager : MonoBehaviour
     {
         ObjectSelected = true;
     }
+    
+    #endregion
+
+    #region Connection Drawing
+    
     // Draws debug objects for the waypoint and connections.
     private void DrawWaypointAndConnections(bool ObjectSelected)
     {
@@ -164,4 +205,6 @@ public class VisGraphWaypointManager : MonoBehaviour
         (direction.normalized * (0.1f * ConnectionsIndex)),
         left * arrowHeadLength, ArrowHeadColor);
     }
+    
+    #endregion
 }

@@ -1,8 +1,13 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// Provides agent statistics for HUD display and collision tracking.
+/// </summary>
 public class AgentStatsSource : MonoBehaviour
 {
+    #region Inspector Fields
+    
     [Header("Agent Info")]
     public string agentName = "Agent";
     public int packageCount = 0;
@@ -23,12 +28,24 @@ public class AgentStatsSource : MonoBehaviour
     public bool usePositionDeltaFallback = true;
     public float minSpeedThreshold = 0.02f;
     public float smoothing = 8f;
+    
+    #endregion
+
+    #region Static Collision Info
 
     // Collision info (shown in UI)
     public static string lastCollisionMessage = "No Collision";
     private static float lastCollisionTime;
+    
+    #endregion
+
+    #region Private State
 
     private Vector3 lastPos;
+    
+    #endregion
+
+    #region Unity Lifecycle Methods
 
     void Reset()
     {
@@ -51,6 +68,10 @@ public class AgentStatsSource : MonoBehaviour
     {
         lastPos = transform.position;
     }
+    
+    #endregion
+
+    #region Auto Naming
 
     void ApplyAutoName(bool force)
     {
@@ -65,6 +86,10 @@ public class AgentStatsSource : MonoBehaviour
 
         agentName = useRootName ? transform.root.name : gameObject.name;
     }
+    
+    #endregion
+
+    #region Speed and Distance Tracking
 
     void Update()
     {
@@ -111,6 +136,10 @@ public class AgentStatsSource : MonoBehaviour
         if (Time.time - lastCollisionTime > 3f)
             lastCollisionMessage = "No Collision";
     }
+    
+    #endregion
+
+    #region Collision Detection
 
     void OnCollisionEnter(Collision c)
     {
@@ -133,4 +162,6 @@ public class AgentStatsSource : MonoBehaviour
         lastCollisionMessage = $"{agentName} touched {otherName}";
         lastCollisionTime = Time.time;
     }
+    
+    #endregion
 }

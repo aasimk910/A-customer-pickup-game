@@ -7,12 +7,22 @@ using UnityEngine;
 /// </summary>
 public class Graph
 {
+    #region Private Fields
+    
     // Dictionary for O(1) lookup of connections from a node
     private Dictionary<GameObject, List<Connection>> connectionsByNode = new Dictionary<GameObject, List<Connection>>();
+    
+    #endregion
+
+    #region Constructor
 
     public Graph()
     {
     }
+    
+    #endregion
+
+    #region Public Methods
 
     // Add connection - O(1) average case
     public void AddConnection(Connection aConnection)
@@ -36,4 +46,6 @@ public class Graph
         }
         return new List<Connection>();
     }
+    
+    #endregion
 }

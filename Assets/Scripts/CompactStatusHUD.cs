@@ -8,6 +8,8 @@ using UnityEngine;
 /// </summary>
 public class CompactStatusHUD : MonoBehaviour
 {
+    #region Inspector Fields
+    
     [Header("Agents")]
     public List<AgentStatsSource> agents = new List<AgentStatsSource>();
 
@@ -27,6 +29,10 @@ public class CompactStatusHUD : MonoBehaviour
     [Range(0.25f, 1.0f)] public float panelWidthPercent = 0.35f;
     [Tooltip("Manual panel height in pixels (0 = auto-calculate based on content)")]
     [Range(0f, 540f)] public float manualPanelHeight = 0f;
+    
+    #endregion
+
+    #region Theme Colors
 
     // Colors - Dark theme with green accents
     private readonly Color panelBgColor = new Color(0.08f, 0.08f, 0.10f, 0.92f);
@@ -39,6 +45,10 @@ public class CompactStatusHUD : MonoBehaviour
     private readonly Color statusGood = new Color(0.3f, 0.85f, 0.5f, 1f);
     private readonly Color statusWarning = new Color(0.95f, 0.75f, 0.2f, 1f);
     private readonly Color statusActive = new Color(0.3f, 0.7f, 1f, 1f);
+    
+    #endregion
+
+    #region GUI Resources
 
     // Textures
     private Texture2D panelBgTex;
@@ -56,10 +66,18 @@ public class CompactStatusHUD : MonoBehaviour
     private GUIStyle sectionStyle;
     private GUIStyle timerStyle;
     private bool stylesInit = false;
+    
+    #endregion
+
+    #region Runtime State
 
     // Runtime
     private float elapsedTime = 0f;
     private Dictionary<AgentStatsSource, ACOTester> acoTesters = new Dictionary<AgentStatsSource, ACOTester>();
+    
+    #endregion
+
+    #region Unity Lifecycle Methods
 
     void Start()
     {
@@ -96,6 +114,10 @@ public class CompactStatusHUD : MonoBehaviour
     {
         elapsedTime += Time.deltaTime;
     }
+    
+    #endregion
+
+    #region Texture and Style Creation
 
     void CreateTextures()
     {
@@ -188,6 +210,10 @@ public class CompactStatusHUD : MonoBehaviour
         };
         sectionStyle.normal.textColor = accentDim;
     }
+    
+    #endregion
+
+    #region GUI Rendering
 
     void OnGUI()
     {
@@ -372,6 +398,10 @@ public class CompactStatusHUD : MonoBehaviour
         // End the Camera 4 clipping group
         GUI.EndGroup();
     }
+    
+    #endregion
+
+    #region Helper Methods
 
     void DrawParameter(float x, float y, float w, string label, string value)
     {
@@ -424,6 +454,10 @@ public class CompactStatusHUD : MonoBehaviour
         // Camera 4 is bottom-right: x=960, y=540 in GUI coordinates
         return new Rect(camW, camH, camW, camH);
     }
+    
+    #endregion
+
+    #region Cleanup
 
     void OnDestroy()
     {
@@ -432,4 +466,6 @@ public class CompactStatusHUD : MonoBehaviour
         if (accentTex != null) Destroy(accentTex);
         if (dividerTex != null) Destroy(dividerTex);
     }
+    
+    #endregion
 }
